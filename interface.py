@@ -9,6 +9,8 @@ que o jogo executa — a mesma ação que a tecla equivalente dispara.
 
 from __future__ import annotations
 
+import math
+
 import pygame
 
 import config as cfg
@@ -142,7 +144,7 @@ def desenhar_hud(tela, fontes, jogo, piscar):
     texto(tela, fontes.pequena, "VIDAS", 12, 12, cfg.CINZA, alinhar="esquerda")
     for i in range(nave.vidas):
         nave.desenhar_icone(tela, 80 + i * 26, 8)
-    texto(tela, fontes.pequena, f"{nave.vidas}/{jogo.teto_vidas}", 84 + nave.vidas * 26, 12, cfg.CINZA, alinhar="esquerda")
+    texto(tela, fontes.pequena, f"{nave.vidas}/{cfg.NAVE_VIDAS_MAX}", 84 + nave.vidas * 26, 12, cfg.CINZA, alinhar="esquerda")
 
     # nível e inimigos restantes
     vivos = sum(1 for ini in inimigos if ini.vivo)
@@ -189,17 +191,21 @@ def desenhar_hud(tela, fontes, jogo, piscar):
         _icone_poder(tela, fontes.pequena, tipo, x, cfg.ALTURA - 16, 11)
         x += 28
 
-    # barra de vida grande do chefe (logo abaixo da faixa do HUD)
-    for ini in inimigos:
-        if ini.vivo and ini.chefe:
-            largura = 400
-            x = cfg.LARGURA // 2 - largura // 2
+    # barras de vida grandes dos chefes (logo abaixo da faixa do HUD)
+    chefes = [ini for ini in inimigos if ini.chefe]
+    if chefes:
+        faixa_util = cfg.LARGURA - 40
+        largura = min(400, faixa_util // len(chefes) - 24)
+        for k, ini in enumerate(chefes):
+            cx = 20 + int((k + 0.5) * faixa_util / len(chefes))
+            x = cx - largura // 2
             y = 50
             proporcao = max(0.0, ini.vida / ini.vida_max)
             pygame.draw.rect(tela, cfg.CINZA, (x, y, largura, 12), border_radius=4)
             pygame.draw.rect(tela, (220, 50, 80), (x, y, int(largura * proporcao), 12), border_radius=4)
             pygame.draw.rect(tela, cfg.BRANCO, (x, y, largura, 12), 1, border_radius=4)
-            texto(tela, fontes.pequena, f"{ini.nome}  {ini.vida}/{ini.vida_max}", cfg.LARGURA // 2, y + 22, cfg.ROSA)
+            rotulo = f"{ini.nome}  {math.ceil(ini.vida)}/{ini.vida_max}" if ini.vivo else f"{ini.nome}  destruído"
+            texto(tela, fontes.pequena, rotulo, cx, y + 22, cfg.ROSA if ini.vivo else cfg.CINZA)
 
     # especiais (canto inferior direito): barra de carga + tecla
     y = cfg.ALTURA - 52
@@ -325,9 +331,10 @@ def desenhar_nivel(tela, fontes, mouse, jogo):
     """Aviso de "NÍVEL N" com o(s) poder(es) que vão cair dos inimigos."""
     escurecer(tela, 160)
     texto(tela, fontes.titulo, f"NÍVEL {jogo.nivel}", cfg.LARGURA // 2, 100, cfg.AMARELO)
-    linha = f"{len(jogo.inimigos)} inimigos  -  vidas restauradas (teto {jogo.teto_vidas})"
+    linha = jogo.descrever_inimigos() + "  -  vidas restauradas"
     if jogo.tem_chefe:
-        texto(tela, fontes.grande, "!!! CHEFE !!!", cfg.LARGURA // 2, 150, cfg.ROSA)
+        qtd = sum(1 for i in jogo.inimigos if i.chefe)
+        texto(tela, fontes.grande, "!!! CHEFE !!!" if qtd == 1 else f"!!! {qtd} CHEFES !!!", cfg.LARGURA // 2, 150, cfg.ROSA)
         texto(tela, fontes.media, linha, cfg.LARGURA // 2, 185, cfg.BRANCO)
     else:
         texto(tela, fontes.media, linha, cfg.LARGURA // 2, 160, cfg.BRANCO)
@@ -362,7 +369,7 @@ def desenhar_nivel(tela, fontes, mouse, jogo):
           cfg.LARGURA // 2, y, cfg.CIANO)
 
     botoes = [
-        Botao(cfg.LARGURA // 2 - 250, cfg.ALTURA - 52, 300, 40, "COMEÇAR (qualquer tecla)", "comecar", cfg.AMARELO),
+        Botao(cfg.LARGURA // 2 - 250, cfg.ALTURA - 52, 300, 40, "COMEÇAR (Enter)", "comecar", cfg.AMARELO),
         Botao(cfg.LARGURA // 2 + 70, cfg.ALTURA - 52, 180, 40, f"LOJA (L)  {jogo.moedas} moedas", "loja", cfg.LARANJA),
     ]
     for botao in botoes:
@@ -416,11 +423,11 @@ def desenhar_loja(tela, fontes, mouse, jogo, selecionada, so_ver):
         texto(tela, fontes.pequena, info["desc"], 56, y + 40, cfg.CINZA, alinhar="esquerda")
         # bolinhas de nível: ●●○
         for k in range(info["max"]):
-            cx = 480 + k * 22
+            cx = 440 + k * 22
             cor = cfg.VERDE if k < nivel else (60, 60, 75)
             pygame.draw.circle(tela, cor, (cx, y + 20), 8)
             pygame.draw.circle(tela, cfg.BRANCO, (cx, y + 20), 8, 1)
-        texto(tela, fontes.pequena, f"{nivel}/{info['max']}", 484 + info["max"] * 22, y + 11, cfg.CINZA, alinhar="esquerda")
+        texto(tela, fontes.pequena, f"{nivel}/{info['max']}", 444 + info["max"] * 22, y + 11, cfg.CINZA, alinhar="esquerda")
 
         if preco is None:
             rotulo, ativo, cor = "MÁXIMO", False, cfg.VERDE

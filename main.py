@@ -7,11 +7,14 @@ Uso:
 Como funciona:
 - Você controla a nave azul (embaixo) e precisa destruir as naves inimigas
   (em cima), que se movem e atiram contra você.
-- O jogo tem níveis infinitos: o nível 1 tem 2 inimigos e cada nível novo
-  adiciona mais um. A cada nível as vidas voltam para pelo menos 3 (vidas
-  extras acumuladas são mantidas); o jogo acaba quando as vidas se esgotam.
-- A cada 5 níveis aparece um CHEFE, cada vez mais forte.
-- Cada inimigo tem 3 pontos de vida, mostrados numa barra em cima dele.
+- O jogo tem níveis infinitos em ciclos de 10: o nível 1 tem 2 inimigos e
+  cada nível adiciona mais um; nos níveis 5 e 10 aparece só um CHEFE, cada
+  vez mais forte. No nível 11 o chefe do nível 10 vira permanente, os
+  inimigos recomeçam em 2 (com +1 de vida) e assim por diante: no nível 21
+  são 2 chefes permanentes + inimigos com +2 de vida.
+- A cada nível as vidas voltam para pelo menos 3 (máximo 5); o jogo acaba
+  quando as vidas se esgotam.
+- Cada inimigo tem 3 pontos de vida (+1 por ciclo), numa barra em cima dele.
 - Metade dos inimigos de cada fase solta um PODER ao morrer (tiro duplo,
   escudo, explosão, vida extra, congelar, tiro rápido). Até o nível 4 cai um
   poder por nível, sem repetir; do 5 em diante caem combinações (duplas,
@@ -19,7 +22,7 @@ Como funciona:
 - Há ESPECIAIS que carregam com o tempo e são usados com as teclas 1/2/3.
 - Cada inimigo destruído vale 10 pontos, e cada ponto vira 1 moeda para a
   LOJA (fim de cada nível): upgrades de movimento, cadência e potência do
-  tiro (nível máximo 3) e o Ressurgir (continua de onde parou ao morrer).
+  tiro (+20% por nível, máximo 5) e o Ressurgir (continua de onde parou).
 - Os menus funcionam por teclado e por mouse; a janela pode ser
   redimensionada e o jogo é escalado mantendo a proporção.
 
@@ -123,15 +126,12 @@ class Jogo:
         self.poderes = []
 
         self.poderes_nivel = self.sortear_poderes()
-        self.tem_chefe = self.nivel % cfg.CHEFE_A_CADA == 0
-        self.inimigos = self.criar_inimigos(cfg.INIMIGOS_NIVEL_1 + self.nivel - 1)
+        self.inimigos = self.criar_inimigos()
         self.marcar_quem_solta_poder()
-        # teto de vidas: 5 ou metade dos inimigos na tela, o que for maior
-        self.teto_vidas = max(cfg.VIDAS_TETO_MIN, len(self.inimigos) // 2)
         self.estado = NIVEL
         nomes = " + ".join(PODERES[t]["nome"] for t in self.poderes_nivel)
-        print(f"[nível {self.nivel}] {len(self.inimigos)} inimigos{' (com CHEFE)' if self.tem_chefe else ''}"
-              f" | poderes: {nomes} | vidas: {self.nave.vidas}/{self.teto_vidas} | moedas: {self.moedas}")
+        print(f"[nível {self.nivel}] {self.descrever_inimigos()} | poderes: {nomes}"
+              f" | vidas: {self.nave.vidas}/{cfg.NAVE_VIDAS_MAX} | moedas: {self.moedas}")
 
     def sortear_poderes(self):
         """Decide quais poderes caem neste nível.
@@ -158,20 +158,48 @@ class Jogo:
                 return list(combo)
             self.tamanho_combo += 1            # acabaram as duplas -> trios, etc.
 
-    def criar_inimigos(self, quantidade):
-        """Distribui os inimigos em linhas no topo da tela.
+    def estrutura_nivel(self):
+        """Decide o que o nível tem, pela posição dele no ciclo de 10 níveis.
 
-        Em nível de chefe, o chefe fica no centro e só metade dos inimigos
-        normais aparece, como escolta.
+        Devolve (tiers dos chefes, quantidade de inimigos comuns, vida deles):
+        - ciclo 0 (níveis 1-10): sem chefe permanente; 2, 3, 4... inimigos;
+          nos níveis 5 e 10 só o chefe (tier 1 e 2).
+        - ciclo 1 (níveis 11-20): o chefe do nível 10 (tier 2) fica permanente,
+          os inimigos recomeçam em 2 e ganham +1 de vida; nos níveis 15 e 20
+          entra o chefe novo junto com o permanente, sem inimigos comuns.
+        - ciclo 2 (21-30): 2 chefes permanentes (tiers 2 e 4), inimigos com +2
+          de vida... e assim por diante.
         """
-        inimigos = []
-        if self.tem_chefe:
-            tier = self.nivel // cfg.CHEFE_A_CADA
-            inimigos.append(Chefe(cfg.LARGURA // 2, 130, tier, self.nivel))
-            quantidade = math.ceil(quantidade * cfg.CHEFE_ESCOLTA)
-            y_inicial = 250
+        ciclo = (self.nivel - 1) // cfg.NIVEIS_POR_CICLO
+        posicao = (self.nivel - 1) % cfg.NIVEIS_POR_CICLO + 1        # 1..10 dentro do ciclo
+        tiers = [2 * c for c in range(1, ciclo + 1)]                  # chefes permanentes
+        nivel_de_chefe = posicao % cfg.CHEFE_A_CADA == 0
+        if nivel_de_chefe:
+            tiers.append(self.nivel // cfg.CHEFE_A_CADA)              # o chefe novo deste nível
+            quantidade = 0
         else:
-            y_inicial = 110
+            quantidade = cfg.INIMIGOS_NIVEL_1 + posicao - 1
+        vida = cfg.INIMIGO_VIDA + cfg.VIDA_EXTRA_POR_CICLO * ciclo
+        return tiers, quantidade, vida
+
+    def descrever_inimigos(self):
+        tiers, quantidade, vida = self.estrutura_nivel()
+        partes = []
+        if tiers:
+            partes.append(f"{len(tiers)} chefe{'s' if len(tiers) > 1 else ''} (tier {', '.join(map(str, tiers))})")
+        if quantidade:
+            partes.append(f"{quantidade} inimigos com {vida} de vida")
+        return " + ".join(partes)
+
+    def criar_inimigos(self):
+        """Monta os chefes (topo) e distribui os inimigos comuns em linhas."""
+        tiers, quantidade, vida = self.estrutura_nivel()
+        self.tem_chefe = bool(tiers)
+        inimigos = []
+        for i, tier in enumerate(tiers):
+            x = cfg.LARGURA * (i + 1) / (len(tiers) + 1)
+            inimigos.append(Chefe(x, 130, tier, self.nivel))
+        y_inicial = 250 if tiers else 110
 
         # linhas mais cheias quando há muitos inimigos, para não descerem demais
         if quantidade <= 8:
@@ -188,7 +216,7 @@ class Jogo:
             y = y_inicial + linha * 70
             padrao = "vaivem" if i % 2 == 0 else "onda"
             cor = CORES_INIMIGOS[i % len(CORES_INIMIGOS)]
-            inimigos.append(Inimigo(x, y, padrao=padrao, cor=cor, nome=f"Inimigo {i + 1}", nivel=self.nivel))
+            inimigos.append(Inimigo(x, y, padrao=padrao, cor=cor, nome=f"Inimigo {i + 1}", nivel=self.nivel, vida=vida))
         return inimigos
 
     def marcar_quem_solta_poder(self):
@@ -199,8 +227,10 @@ class Jogo:
         morreram (congelados, pela explosão, pela tempestade...).
         """
         comuns = [ini for ini in self.inimigos if not ini.chefe]
+        if not comuns:
+            return                                  # nível só de chefes: eles sempre soltam
         quantos = max(1, math.ceil(len(comuns) * cfg.PODER_FRACAO))
-        for ini in random.sample(comuns, min(quantos, len(comuns))):
+        for ini in random.sample(comuns, quantos):
             ini.solta_poder = True
 
     # ------------------------------------------------------------------
@@ -318,16 +348,16 @@ class Jogo:
             self.rodando = False
 
     def teclas_nivel(self, tecla):
-        # a fase só começa quando o jogador aperta uma tecla (ou clica em COMEÇAR)
-        if tecla == pygame.K_ESCAPE:
+        # a fase só começa com ENTER (ou clique em COMEÇAR), para não sair sem querer
+        if tecla in (pygame.K_RETURN, pygame.K_KP_ENTER):
+            self.tocar("menu")
+            self.executar_acao("comecar")
+        elif tecla == pygame.K_ESCAPE:
             self.pausar(vindo_de=NIVEL)
         elif tecla == pygame.K_l:
             self.executar_acao("loja")
         elif tecla == pygame.K_m:
             self.alternar_som()
-        else:
-            self.tocar("menu")
-            self.executar_acao("comecar")
 
     def teclas_jogando(self, tecla):
         if tecla == pygame.K_ESCAPE:
@@ -515,7 +545,7 @@ class Jogo:
                     else:
                         self.explosoes.append(Explosao(tiro.rect.centerx, tiro.rect.centery, inimigo.cor, 8))
                         self.tocar("acerto")
-                        print(f"[jogo] {inimigo.nome} atingido: vida {inimigo.vida}/{inimigo.vida_max}")
+                        print(f"[jogo] {inimigo.nome} atingido: vida {inimigo.vida:.1f}/{inimigo.vida_max}")
                     break
 
         # tiros dos inimigos x nave
@@ -574,8 +604,8 @@ class Jogo:
                 if inimigo.vivo:
                     inimigo.congelado = cfg.CONGELAR_DURACAO
         else:
-            if not self.nave.aplicar_poder(tipo, self.teto_vidas):
-                print(f"[poder] {PODERES[tipo]['nome']}: vidas já no teto ({self.teto_vidas})")
+            if not self.nave.aplicar_poder(tipo):
+                print(f"[poder] {PODERES[tipo]['nome']}: vidas já no máximo ({cfg.NAVE_VIDAS_MAX})")
                 return
         print(f"[poder] {PODERES[tipo]['nome']} ativado")
 
@@ -601,9 +631,9 @@ class Jogo:
             return
         tipo = especial["tipo"]
         if tipo == "vida":
-            if not self.nave.aplicar_poder("vida", self.teto_vidas):
+            if not self.nave.aplicar_poder("vida"):
                 self.tocar("erro")
-                print(f"[especial] Vida extra: vidas já no teto ({self.teto_vidas}) - carga mantida")
+                print(f"[especial] Vida extra: vidas já no máximo ({cfg.NAVE_VIDAS_MAX}) - carga mantida")
                 return
         elif tipo == "explosao":
             self.explodir_inimigos()

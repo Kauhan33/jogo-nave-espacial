@@ -63,7 +63,7 @@ NIVEL_TELA_FRAMES = 150       # tempo (frames) da tela "NÍVEL N"
 NIVEIS_SEM_REPETIR = 4        # até esse nível os poderes não se repetem
 
 # --- Poderes --------------------------------------------------------------
-NAVE_VIDAS_MAX = 5           # (teto mínimo; ver VIDAS_TETO_MIN)
+NAVE_VIDAS_MAX = 5            # teto de vidas (vida extra não passa disso)
 PODER_VEL_QUEDA = 2.0
 PODER_FRACAO = 0.5            # fração dos inimigos de cada fase que carrega poder
 PODER_DURACAO = 12 * FPS      # frames de tiro duplo / tiro rápido
@@ -74,19 +74,20 @@ EXPLOSAO_ALVOS = 3            # inimigos destruídos pelo poder "explosão"
 CHEFE_A_CADA = 5
 CHEFE_LARGURA = 120
 CHEFE_ALTURA = 64
-CHEFE_VIDA_BASE = 15          # vida do 1º chefe (nível 5)
-CHEFE_VIDA_EXTRA = 10         # vida a mais a cada chefe seguinte
-CHEFE_VELOCIDADE = 2.0
+CHEFE_VIDA_BASE = 22          # vida do 1º chefe (nível 5) - ele vem sozinho, por isso mais forte
+CHEFE_VIDA_EXTRA = 15         # vida a mais a cada chefe seguinte
+CHEFE_VELOCIDADE = 2.4
 CHEFE_VEL_EXTRA = 0.4         # velocidade a mais por chefe
-CHEFE_CHANCE_TIRO = 0.03
-CHEFE_CHANCE_EXTRA = 0.01     # chance de tiro a mais por chefe
+CHEFE_CHANCE_TIRO = 0.045
+CHEFE_CHANCE_EXTRA = 0.012    # chance de tiro a mais por chefe
 CHEFE_TIROS_BASE = 3          # tiros por rajada (leque) do 1º chefe
 CHEFE_TIROS_EXTRA = 2         # tiros a mais por chefe (máximo CHEFE_TIROS_MAX)
 CHEFE_TIROS_MAX = 9
-CHEFE_ESCOLTA = 0.5           # fração dos inimigos normais que acompanha o chefe
 
-# --- Vidas acumuladas -------------------------------------------------------
-VIDAS_TETO_MIN = 5            # teto de vidas = max(VIDAS_TETO_MIN, inimigos // 2)
+# --- Ciclos de níveis -------------------------------------------------------
+NIVEIS_POR_CICLO = 10         # a cada 10 níveis: +1 chefe permanente, inimigos recomeçam
+VIDA_EXTRA_POR_CICLO = 1      # inimigos comuns ganham +1 de vida a cada ciclo
+NIVEL_ESCALA_MAX = 10         # o bônus de velocidade/tiro por nível para de crescer aqui
 
 # --- Especiais (carregam com o tempo; tecla 1/2/3) --------------------------
 ESPECIAIS = [
@@ -98,15 +99,13 @@ ESPECIAIS = [
 
 # --- Loja (upgrades por partida) --------------------------------------------
 LOJA = {
-    "movimento": {"nome": "Velocidade de movimento", "max": 3, "precos": [40, 80, 120],
-                  "desc": "+1 de velocidade da nave por nível"},
-    "cadencia":  {"nome": "Velocidade de tiro", "max": 3, "precos": [50, 100, 150],
-                  "desc": "Atira mais rápido a cada nível"},
-    "potencia":  {"nome": "Potência do tiro", "max": 3, "precos": [60, 120, 180],
-                  "desc": "+1 de dano por tiro a cada nível"},
+    "movimento": {"nome": "Velocidade de movimento", "max": 5, "precos": [40, 80, 120, 160, 200],
+                  "desc": "+20% de velocidade da nave por nível"},
+    "cadencia":  {"nome": "Velocidade de tiro", "max": 5, "precos": [50, 100, 150, 200, 250],
+                  "desc": "+20% de cadência de tiro por nível"},
+    "potencia":  {"nome": "Potência do tiro", "max": 5, "precos": [60, 120, 180, 240, 300],
+                  "desc": "+20% de dano por tiro por nível"},
     "ressurgir": {"nome": "Ressurgir", "max": 1, "precos": [150],
                   "desc": "Morreu? Continua de onde parou com 3 vidas"},
 }
-UPGRADE_MOVIMENTO = 1         # velocidade extra por nível do upgrade
-UPGRADE_CADENCIA = 3          # frames a menos entre tiros por nível
-UPGRADE_POTENCIA = 1          # dano extra por nível
+UPGRADE_BONUS = 0.20          # cada nível de upgrade dá +20% (velocidade, cadência, dano)

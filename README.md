@@ -42,25 +42,29 @@ polígonos do pygame e os efeitos sonoros/música são sintetizados na hora
 - Os menus funcionam por **teclado e mouse** (botões clicáveis). A **janela
   pode ser redimensionada**: o jogo é escalado mantendo a proporção 4:3.
 
-### Níveis (infinitos)
+### Níveis (infinitos, em ciclos de 10)
 
-- O **nível 1 tem 2 inimigos** e **cada nível novo adiciona mais um**
-  (nível N = N + 1 inimigos), um pouco mais rápidos e atirando mais.
-- Ao destruir todos os inimigos aparece a tela "NÍVEL N" (a fase só começa
-  quando você aperta uma tecla). As vidas voltam para **pelo menos 3**;
-  vidas extras acumuladas são mantidas.
-- **Teto de vidas** = 5 ou metade dos inimigos da fase, o que for maior
-  (12 inimigos → 6 vidas, 14 → 7...).
-- O jogo só termina quando as vidas acabam — o objetivo é chegar o mais
-  longe possível. O recorde da sessão aparece na tela de fim.
+- **Níveis 1 a 4:** 2, 3, 4, 5 inimigos. **Nível 5:** só o chefe nº 1.
+  **Níveis 6 a 9:** 7, 8, 9, 10 inimigos. **Nível 10:** só o chefe nº 2.
+- **Nível 11 em diante (2º ciclo):** o chefe do nível 10 vira **permanente**
+  e os inimigos comuns recomeçam em 2 (nível 11 = 1 chefe + 2 inimigos,
+  nível 12 = 1 chefe + 3...), agora com **4 de vida**. Nos níveis 15 e 20
+  entra o chefe novo junto com o permanente, sem inimigos comuns.
+- **Nível 21 (3º ciclo):** 2 chefes permanentes (os dos níveis 10 e 20) +
+  2 inimigos com 5 de vida, e assim sucessivamente.
+- Ao terminar um nível aparece a tela "NÍVEL N"; a fase só começa com
+  **ENTER** (ou clique em COMEÇAR). As vidas voltam para pelo menos 3;
+  vidas extras acumuladas são mantidas até o **máximo de 5**.
+- O jogo só termina quando as vidas acabam. O recorde da sessão aparece
+  na tela de fim.
 
-### Chefe (a cada 5 níveis)
+### Chefe
 
-Nos níveis 5, 10, 15... aparece um **chefe** no centro, com metade dos
-inimigos normais como escolta. A cada chefe ele fica mais forte: mais vida
-(15, 25, 35...), mais rápido, atira mais vezes e com **mais tiros por rajada
-em leque** (3, 5, 7, até 9). Tem uma barra de vida grande no topo da tela,
-vale 200 pontos por acerto e 5000 × número do chefe ao ser destruído.
+Nos níveis 5, 10, 15... aparece um **chefe** sozinho (por isso ele é ~50 %
+mais forte que um inimigo de escolta permitiria). A cada chefe ele fica mais
+forte: mais vida (22, 37, 52...), mais rápido, atira mais vezes e com **mais
+tiros por rajada em leque** (3, 5, 7, até 9). Tem barra de vida grande no
+topo da tela, vale 50 × nº do chefe em pontos/moedas.
 **O chefe é imune à explosão** (tanto o poder quanto o especial).
 
 ### Poderes
@@ -76,7 +80,7 @@ que acumula.
 | Tiro duplo   | Atira dois tiros de uma vez por 12 s                       |
 | Explosão     | Destrói até 3 inimigos aleatórios na hora (não o chefe)    |
 | Escudo       | Absorve o próximo tiro inimigo (círculo na nave)           |
-| Vida extra   | +1 vida (até o teto da fase)                               |
+| Vida extra   | +1 vida (máximo 5)                                          |
 | Congelar     | Inimigos param de se mover e atirar por 5 s                |
 | Tiro rápido  | Intervalo entre tiros cai pela metade por 12 s             |
 
@@ -96,7 +100,7 @@ para usar e ela recarrega do zero.
 
 | Tecla | Especial   | Carga | Efeito                                              |
 |-------|------------|-------|-----------------------------------------------------|
-| 1     | Vida extra | 30 s  | +1 vida (respeita o teto; se estiver no teto, mantém a carga) |
+| 1     | Vida extra | 30 s  | +1 vida (máx. 5; se já estiver no máximo, mantém a carga) |
 | 2     | Explosão   | 60 s  | Destrói até 3 inimigos aleatórios (não afeta o chefe) |
 | 3     | Tempestade | 90 s  | 1 de dano em **todos** os inimigos, chefe incluso   |
 
@@ -106,12 +110,12 @@ Na tela "NÍVEL N" aperte **L** ou clique em **LOJA** para gastar as moedas
 da partida. No menu inicial a loja abre só para visualização. Tudo é
 perdido ao começar uma nova partida.
 
-| Item                    | Máx. | Preços (por nível) | Efeito                                   |
-|-------------------------|------|--------------------|------------------------------------------|
-| Velocidade de movimento | 3    | 40 / 80 / 120      | +1 de velocidade da nave por nível       |
-| Velocidade de tiro      | 3    | 50 / 100 / 150     | 3 frames a menos entre tiros por nível   |
-| Potência do tiro        | 3    | 60 / 120 / 180     | +1 de dano por tiro (nível 2 mata inimigo comum em 1 tiro) |
-| Ressurgir               | 1    | 150                | Ao morrer, **R**/botão RESSURGIR continua de onde parou com 3 vidas |
+| Item                    | Máx. | Preços (por nível)          | Efeito                                        |
+|-------------------------|------|-----------------------------|-----------------------------------------------|
+| Velocidade de movimento | 5    | 40 / 80 / 120 / 160 / 200   | +20 % de velocidade por nível (5 → 6, 7, 8, 9, 10) |
+| Velocidade de tiro      | 5    | 50 / 100 / 150 / 200 / 250  | +20 % de cadência por nível (15 → 12, 10, 9, 8, 7 frames) |
+| Potência do tiro        | 5    | 60 / 120 / 180 / 240 / 300  | +20 % de dano por nível (1,0 → 1,2 … 2,0)     |
+| Ressurgir               | 1    | 150                         | Ao morrer, **R**/botão RESSURGIR continua de onde parou com 3 vidas |
 
 ## Controles
 

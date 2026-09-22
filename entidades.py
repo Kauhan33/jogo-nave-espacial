@@ -49,7 +49,7 @@ class Tiro:
 
     def desenhar(self, tela):
         # tiros mais fortes (upgrade de potência) são desenhados mais largos
-        r = self.rect.inflate(2 * (self.dano - 1), 0)
+        r = self.rect.inflate(int(4 * (self.dano - 1)), 0)
         pygame.draw.rect(tela, self.cor, r, border_radius=2)
         # miolo branco para dar "brilho" ao tiro
         pygame.draw.rect(tela, cfg.BRANCO, r.inflate(-2, -6), border_radius=2)
@@ -76,15 +76,18 @@ class Nave:
 
     @property
     def velocidade(self):
-        return cfg.NAVE_VELOCIDADE + cfg.UPGRADE_MOVIMENTO * self.upgrades["movimento"]
+        """Velocidade com o upgrade: +20% por nível (5 -> 6, 7, 8, 9, 10)."""
+        return int(cfg.NAVE_VELOCIDADE * (1 + cfg.UPGRADE_BONUS * self.upgrades["movimento"]))
 
     @property
     def intervalo_tiro(self):
-        return max(3, cfg.NAVE_INTERVALO_TIRO - cfg.UPGRADE_CADENCIA * self.upgrades["cadencia"])
+        """Frames entre tiros com o upgrade: 20% mais rápido por nível (15 -> 12, 10, 9, 8, 7)."""
+        return max(3, int(cfg.NAVE_INTERVALO_TIRO / (1 + cfg.UPGRADE_BONUS * self.upgrades["cadencia"])))
 
     @property
     def dano(self):
-        return 1 + cfg.UPGRADE_POTENCIA * self.upgrades["potencia"]
+        """Dano por tiro com o upgrade: +20% por nível (1.0 -> 1.2 ... 2.0)."""
+        return round(1 + cfg.UPGRADE_BONUS * self.upgrades["potencia"], 1)
 
     @property
     def viva(self):
@@ -145,10 +148,9 @@ class Nave:
         self.vidas -= 1
         return "vida"
 
-    def aplicar_poder(self, tipo, teto_vidas=cfg.VIDAS_TETO_MIN):
+    def aplicar_poder(self, tipo):
         """Ativa um poder na nave (os que afetam só a nave).
 
-        `teto_vidas` é o máximo de vidas permitido no nível atual.
         Devolve False se o poder não teve efeito (ex.: vidas já no teto).
         """
         if tipo == "tiro_duplo":
@@ -158,7 +160,7 @@ class Nave:
         elif tipo == "escudo":
             self.escudo = True
         elif tipo == "vida":
-            if self.vidas >= teto_vidas:
+            if self.vidas >= cfg.NAVE_VIDAS_MAX:
                 return False
             self.vidas += 1
         return True
@@ -206,7 +208,7 @@ class Inimigo:
     rebate na borda) ou "onda" (movimento senoidal, sobe e desce).
     """
 
-    def __init__(self, x, y, padrao="vaivem", cor=cfg.VERMELHO, nome="Inimigo", nivel=1):
+    def __init__(self, x, y, padrao="vaivem", cor=cfg.VERMELHO, nome="Inimigo", nivel=1, vida=cfg.INIMIGO_VIDA):
         self.nome = nome
         self.cor = cor
         self.padrao = padrao
@@ -214,12 +216,13 @@ class Inimigo:
         self.rect.center = (x, y)
         self.x = float(x)
         self.y_base = float(y)
-        self.vida_max = cfg.INIMIGO_VIDA
-        self.vida = self.vida_max
+        self.vida_max = vida
+        self.vida = float(vida)
         self.direcao = random.choice([-1, 1])
-        # cada nível deixa os inimigos um pouco mais rápidos e mais atiradores
-        self.velocidade = cfg.INIMIGO_VELOCIDADE + cfg.NIVEL_VEL_EXTRA * (nivel - 1)
-        self.chance_tiro = cfg.INIMIGO_CHANCE_TIRO * (1 + cfg.NIVEL_TIRO_EXTRA * (nivel - 1))
+        # cada nível deixa os inimigos um pouco mais rápidos e mais atiradores (até um limite)
+        escala = min(nivel - 1, cfg.NIVEL_ESCALA_MAX)
+        self.velocidade = cfg.INIMIGO_VELOCIDADE + cfg.NIVEL_VEL_EXTRA * escala
+        self.chance_tiro = cfg.INIMIGO_CHANCE_TIRO * (1 + cfg.NIVEL_TIRO_EXTRA * escala)
         self.tempo = random.uniform(0, math.pi * 2)   # fase da onda
         self.recarga = cfg.INIMIGO_INTERVALO_MIN
         self.piscar = 0                                 # frames de "flash" ao ser atingido
@@ -328,7 +331,7 @@ class Chefe(Inimigo):
         self.rect = pygame.Rect(0, 0, cfg.CHEFE_LARGURA, cfg.CHEFE_ALTURA)
         self.rect.center = (x, y)
         self.vida_max = cfg.CHEFE_VIDA_BASE + cfg.CHEFE_VIDA_EXTRA * (tier - 1)
-        self.vida = self.vida_max
+        self.vida = float(self.vida_max)
         self.velocidade = cfg.CHEFE_VELOCIDADE + cfg.CHEFE_VEL_EXTRA * (tier - 1)
         self.chance_tiro = cfg.CHEFE_CHANCE_TIRO + cfg.CHEFE_CHANCE_EXTRA * (tier - 1)
         self.tiros_por_rajada = min(cfg.CHEFE_TIROS_MAX, cfg.CHEFE_TIROS_BASE + cfg.CHEFE_TIROS_EXTRA * (tier - 1))
@@ -388,7 +391,7 @@ PODERES = {
     "escudo":      {"nome": "Escudo",      "cor": cfg.AZUL,    "letra": "E",
                     "desc": "Absorve o próximo tiro inimigo"},
     "vida":        {"nome": "Vida extra",  "cor": cfg.VERDE,   "letra": "+",
-                    "desc": "Ganha 1 vida (acumula entre os níveis)"},
+                    "desc": f"Ganha 1 vida (máximo {cfg.NAVE_VIDAS_MAX}, acumula entre níveis)"},
     "congelar":    {"nome": "Congelar",    "cor": cfg.GELO,    "letra": "C",
                     "desc": "Inimigos param de se mover e atirar por 5 s"},
     "tiro_rapido": {"nome": "Tiro rápido", "cor": cfg.AMARELO, "letra": "R",
