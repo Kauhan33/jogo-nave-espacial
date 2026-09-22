@@ -102,6 +102,7 @@ def carregar_sons():
         "dano": _para_som(_onda(180, 60, 0.35, "quadrada", 0.35)),
         "menu": _para_som(_onda(660, 990, 0.08, "seno", 0.25)),
         "vitoria": _para_som(_onda(440, 1320, 0.8, "triangulo", 0.35)),
+        "poder": _para_som(_nota(523.25, 0.12, 0.3) + _nota(659.25, 0.12, 0.3) + _nota(783.99, 0.2, 0.3)),
         "derrota": _para_som(_onda(330, 55, 1.2, "quadrada", 0.3)),
         "musica": _para_som(_musica_fundo()),
     }

@@ -60,6 +60,10 @@ class Nave:
         self.cooldown = 0          # frames até poder atirar de novo
         self.invencivel = 0        # frames restantes de invencibilidade
         self.chama = 0             # animação do fogo do motor
+        # poderes ativos
+        self.escudo = False        # absorve o próximo dano
+        self.tiro_duplo = 0        # frames restantes de tiro duplo
+        self.tiro_rapido = 0       # frames restantes de tiro rápido
 
     @property
     def viva(self):
@@ -85,22 +89,50 @@ class Nave:
             self.cooldown -= 1
         if self.invencivel > 0:
             self.invencivel -= 1
+        if self.tiro_duplo > 0:
+            self.tiro_duplo -= 1
+        if self.tiro_rapido > 0:
+            self.tiro_rapido -= 1
         self.chama = (self.chama + 1) % 6
 
     def atirar(self):
-        """Devolve um Tiro novo se o cooldown permitir, senão None."""
+        """Devolve uma lista de Tiros (vazia se o cooldown não permitir).
+
+        Com "tiro duplo" saem dois tiros lado a lado; com "tiro rápido" o
+        intervalo entre tiros cai pela metade.
+        """
         if self.cooldown > 0:
-            return None
+            return []
         self.cooldown = cfg.NAVE_INTERVALO_TIRO
-        return Tiro(self.rect.centerx, self.rect.top, "nave")
+        if self.tiro_rapido > 0:
+            self.cooldown //= 2
+        if self.tiro_duplo > 0:
+            return [Tiro(self.rect.centerx - 10, self.rect.top + 6, "nave"),
+                    Tiro(self.rect.centerx + 10, self.rect.top + 6, "nave")]
+        return [Tiro(self.rect.centerx, self.rect.top, "nave")]
 
     def receber_dano(self):
-        """Tira uma vida. Devolve True se o dano foi aplicado."""
+        """Aplica um dano. Devolve "nada" (estava invencível), "escudo"
+        (o escudo absorveu) ou "vida" (perdeu uma vida)."""
         if self.invencivel > 0:
-            return False
-        self.vidas -= 1
+            return "nada"
         self.invencivel = cfg.NAVE_INVENCIVEL
-        return True
+        if self.escudo:
+            self.escudo = False
+            return "escudo"
+        self.vidas -= 1
+        return "vida"
+
+    def aplicar_poder(self, tipo):
+        """Ativa um poder na nave (os que afetam só a nave)."""
+        if tipo == "tiro_duplo":
+            self.tiro_duplo = cfg.PODER_DURACAO
+        elif tipo == "tiro_rapido":
+            self.tiro_rapido = cfg.PODER_DURACAO
+        elif tipo == "escudo":
+            self.escudo = True
+        elif tipo == "vida":
+            self.vidas = min(cfg.NAVE_VIDAS_MAX, self.vidas + 1)
 
     def desenhar(self, tela):
         # pisca enquanto está invencível
@@ -119,6 +151,9 @@ class Nave:
                 (r.centerx, r.bottom - 12 + tamanho)]
         pygame.draw.polygon(tela, cfg.LARANJA, fogo)
         pygame.draw.polygon(tela, cfg.AMARELO, fogo, 1)
+        # escudo: círculo em volta da nave
+        if self.escudo:
+            pygame.draw.circle(tela, cfg.CIANO, r.center, r.width // 2 + 10, 2)
 
     def desenhar_icone(self, tela, x, y, escala=0.5):
         """Versão pequena da nave, usada no HUD para mostrar as vidas."""
@@ -136,7 +171,7 @@ class Inimigo:
     rebate na borda) ou "onda" (movimento senoidal, sobe e desce).
     """
 
-    def __init__(self, x, y, padrao="vaivem", cor=cfg.VERMELHO, nome="Inimigo"):
+    def __init__(self, x, y, padrao="vaivem", cor=cfg.VERMELHO, nome="Inimigo", nivel=1):
         self.nome = nome
         self.cor = cor
         self.padrao = padrao
@@ -147,16 +182,24 @@ class Inimigo:
         self.vida_max = cfg.INIMIGO_VIDA
         self.vida = self.vida_max
         self.direcao = random.choice([-1, 1])
-        self.velocidade = cfg.INIMIGO_VELOCIDADE
+        # cada nível deixa os inimigos um pouco mais rápidos e mais atiradores
+        self.velocidade = cfg.INIMIGO_VELOCIDADE + cfg.NIVEL_VEL_EXTRA * (nivel - 1)
+        self.chance_tiro = cfg.INIMIGO_CHANCE_TIRO * (1 + cfg.NIVEL_TIRO_EXTRA * (nivel - 1))
         self.tempo = random.uniform(0, math.pi * 2)   # fase da onda
         self.recarga = cfg.INIMIGO_INTERVALO_MIN
         self.piscar = 0                                 # frames de "flash" ao ser atingido
+        self.congelado = 0                              # frames parado (poder "congelar")
 
     @property
     def vivo(self):
         return self.vida > 0
 
     def atualizar(self):
+        if self.piscar > 0:
+            self.piscar -= 1
+        if self.congelado > 0:
+            self.congelado -= 1
+            return                                      # congelado: não se move nem recarrega
         self.tempo += 0.03
         meia_largura = self.rect.width // 2
         if self.padrao == "vaivem":
@@ -173,12 +216,10 @@ class Inimigo:
 
         if self.recarga > 0:
             self.recarga -= 1
-        if self.piscar > 0:
-            self.piscar -= 1
 
     def tentar_atirar(self, alvo_rect):
         """Com uma pequena chance por frame, dispara um tiro mirando na nave."""
-        if self.recarga > 0 or random.random() > cfg.INIMIGO_CHANCE_TIRO:
+        if self.congelado > 0 or self.recarga > 0 or random.random() > self.chance_tiro:
             return None
         self.recarga = cfg.INIMIGO_INTERVALO_MIN
         # mira: desloca o tiro no eixo X na direção da nave
@@ -197,12 +238,19 @@ class Inimigo:
 
     def desenhar(self, tela):
         r = self.rect
-        cor = cfg.BRANCO if self.piscar > 0 else self.cor
+        if self.piscar > 0:
+            cor = cfg.BRANCO
+        elif self.congelado > 0:
+            cor = cfg.GELO
+        else:
+            cor = self.cor
         corpo = [(r.left, r.top + 6), (r.centerx, r.bottom), (r.right, r.top + 6),
                  (r.centerx + 12, r.top), (r.centerx - 12, r.top)]
         pygame.draw.polygon(tela, cor, corpo)
         pygame.draw.polygon(tela, cfg.BRANCO, corpo, 2)
         pygame.draw.circle(tela, cfg.AMARELO, (r.centerx, r.centery), 5)
+        if self.congelado > 0:
+            pygame.draw.circle(tela, cfg.CIANO, r.center, r.width // 2 + 6, 1)
         self._desenhar_barra_vida(tela)
 
     def _desenhar_barra_vida(self, tela):
@@ -225,6 +273,54 @@ class Inimigo:
         for i in range(1, self.vida_max):
             mx = x + int(largura * i / self.vida_max)
             pygame.draw.line(tela, cfg.PRETO, (mx, y), (mx, y + altura))
+
+
+# Catálogo de poderes: tipo -> nome, cor, letra do ícone e descrição
+PODERES = {
+    "tiro_duplo":  {"nome": "Tiro duplo",  "cor": cfg.CIANO,   "letra": "D",
+                    "desc": "Atira dois tiros de uma vez por 12 s"},
+    "explosao":    {"nome": "Explosão",    "cor": cfg.LARANJA, "letra": "X",
+                    "desc": f"Destrói até {cfg.EXPLOSAO_ALVOS} inimigos aleatórios"},
+    "escudo":      {"nome": "Escudo",      "cor": cfg.AZUL,    "letra": "E",
+                    "desc": "Absorve o próximo tiro inimigo"},
+    "vida":        {"nome": "Vida extra",  "cor": cfg.VERDE,   "letra": "+",
+                    "desc": f"Ganha 1 vida (máximo {cfg.NAVE_VIDAS_MAX})"},
+    "congelar":    {"nome": "Congelar",    "cor": cfg.GELO,    "letra": "C",
+                    "desc": "Inimigos param de se mover e atirar por 5 s"},
+    "tiro_rapido": {"nome": "Tiro rápido", "cor": cfg.AMARELO, "letra": "R",
+                    "desc": "Atira duas vezes mais rápido por 12 s"},
+}
+
+
+class Poder:
+    """Item que cai de um inimigo destruído; a nave pega encostando nele."""
+
+    RAIO = 14
+
+    def __init__(self, x, y, tipo):
+        self.tipo = tipo
+        self.info = PODERES[tipo]
+        self.x = float(x)
+        self.y = float(y)
+        self.rect = pygame.Rect(0, 0, self.RAIO * 2, self.RAIO * 2)
+        self.rect.center = (int(x), int(y))
+        self.tempo = 0
+
+    def atualizar(self):
+        self.y += cfg.PODER_VEL_QUEDA
+        self.tempo += 1
+        self.rect.center = (int(self.x), int(self.y))
+
+    def fora_da_tela(self):
+        return self.rect.top > cfg.ALTURA
+
+    def desenhar(self, tela, fonte):
+        # "pulsa" para chamar atenção
+        raio = self.RAIO + (2 if (self.tempo // 10) % 2 == 0 else 0)
+        pygame.draw.circle(tela, self.info["cor"], self.rect.center, raio)
+        pygame.draw.circle(tela, cfg.BRANCO, self.rect.center, raio, 2)
+        letra = fonte.render(self.info["letra"], True, cfg.PRETO)
+        tela.blit(letra, letra.get_rect(center=self.rect.center))
 
 
 class Explosao:

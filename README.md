@@ -31,14 +31,41 @@ polígonos do pygame e os efeitos sonoros/música são sintetizados na hora
 
 - A **nave** (azul, embaixo) tem **3 vidas**, mostradas como ícones no HUD.
   Ao ser atingida ela pisca por alguns instantes e fica invencível.
-- Os **2 inimigos** (em cima) têm **3 pontos de vida** cada, mostrados numa
+- Os **inimigos** (em cima) têm **3 pontos de vida** cada, mostrados numa
   **barra de vida** acima deles (verde → amarelo → vermelho). A cada acerto
-  eles ficam mais rápidos.
-- Um inimigo se move de um lado para o outro ("vaivém"); o outro faz um
-  movimento de onda. Os dois atiram mirando na nave.
-- Bater num inimigo também tira uma vida.
-- **Vitória:** destruir os dois inimigos. **Derrota:** perder as 3 vidas.
-- Pontos: 100 por acerto, +500 por inimigo destruído.
+  eles ficam mais rápidos. Metade se move de um lado para o outro
+  ("vaivém"), a outra metade faz um movimento de onda. Todos atiram mirando
+  na nave. Bater num inimigo também tira uma vida.
+- Pontos: 100 por acerto, +500 por inimigo destruído. O recorde da sessão
+  aparece na tela de fim.
+
+### Níveis (infinitos)
+
+- O **nível 1 tem 2 inimigos** e **cada nível novo adiciona mais um**
+  (nível N = N + 1 inimigos), um pouco mais rápidos e atirando mais.
+- Ao destruir todos os inimigos aparece a tela "NÍVEL N" e as **3 vidas
+  são restauradas**.
+- O jogo só termina quando as 3 vidas acabam — o objetivo é chegar o mais
+  longe possível.
+
+### Poderes
+
+Quando um inimigo é destruído pode cair um poder (o primeiro do nível
+sempre cai; os demais têm 40% de chance). Pegue encostando a nave nele.
+
+| Poder        | Efeito                                              |
+|--------------|-----------------------------------------------------|
+| Tiro duplo   | Atira dois tiros de uma vez por 12 s                |
+| Explosão     | Destrói até 3 inimigos aleatórios na hora           |
+| Escudo       | Absorve o próximo tiro inimigo (círculo na nave)    |
+| Vida extra   | +1 vida (máximo 5)                                  |
+| Congelar     | Inimigos param de se mover e atirar por 5 s         |
+| Tiro rápido  | Intervalo entre tiros cai pela metade por 12 s      |
+
+Cada nível tem **um** poder, mostrado na tela "NÍVEL N" e no rodapé do HUD.
+Do nível 1 ao 4 os poderes **não se repetem** (ordem sorteada a cada
+partida); a partir do nível 5 qualquer um pode ser sorteado de novo.
+Os poderes ativos e o tempo restante aparecem no canto inferior esquerdo.
 
 ## Controles
 
@@ -60,9 +87,9 @@ pausa, e é impressa no terminal quando o jogo abre.
 
 | Arquivo                        | O que faz                                                          |
 |--------------------------------|--------------------------------------------------------------------|
-| [main.py](main.py)             | Laço principal (`while`), máquina de estados MENU/JOGANDO/PAUSA/FIM, eventos de teclado, colisões |
-| [entidades.py](entidades.py)   | Classes `Nave`, `Inimigo` (com barra de vida), `Tiro`, `Explosao`, `Estrela` |
-| [interface.py](interface.py)   | HUD, tela inicial, menu de pausa, tela de fim e a lista de controles |
+| [main.py](main.py)             | Laço principal (`while`), máquina de estados MENU/NIVEL/JOGANDO/PAUSA/FIM, níveis, poderes, colisões |
+| [entidades.py](entidades.py)   | Classes `Nave`, `Inimigo` (com barra de vida), `Tiro`, `Poder` (catálogo `PODERES`), `Explosao`, `Estrela` |
+| [interface.py](interface.py)   | HUD, tela inicial, tela de nível, menu de pausa, tela de fim e a lista de controles |
 | [sons.py](sons.py)             | Síntese dos efeitos sonoros e da música de fundo                   |
 | [config.py](config.py)         | Constantes: tamanho da tela, cores, velocidades, vidas, pontos     |
 

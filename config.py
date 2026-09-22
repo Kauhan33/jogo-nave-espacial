@@ -22,6 +22,8 @@ AZUL = (70, 160, 255)
 CIANO = (90, 230, 240)
 LARANJA = (255, 140, 40)
 ROXO = (170, 90, 240)
+GELO = (180, 220, 255)
+ROSA = (255, 110, 180)
 
 # --- Nave do jogador ----------------------------------------------------
 NAVE_VIDAS = 3
@@ -51,3 +53,18 @@ PONTOS_DESTRUIR = 500
 
 # --- Cenário ------------------------------------------------------------
 QTD_ESTRELAS = 90
+
+# --- Níveis ---------------------------------------------------------------
+INIMIGOS_NIVEL_1 = 2          # nível N tem INIMIGOS_NIVEL_1 + (N - 1) inimigos
+NIVEL_VEL_EXTRA = 0.2         # velocidade a mais dos inimigos por nível
+NIVEL_TIRO_EXTRA = 0.10       # +10% na chance de tiro por nível
+NIVEL_TELA_FRAMES = 150       # tempo (frames) da tela "NÍVEL N"
+NIVEIS_SEM_REPETIR = 4        # até esse nível os poderes não se repetem
+
+# --- Poderes --------------------------------------------------------------
+NAVE_VIDAS_MAX = 5
+PODER_VEL_QUEDA = 2.0
+PODER_CHANCE = 0.4            # chance de cair poder nas mortes seguintes à 1ª do nível
+PODER_DURACAO = 12 * FPS      # frames de tiro duplo / tiro rápido
+CONGELAR_DURACAO = 5 * FPS
+EXPLOSAO_ALVOS = 3            # inimigos destruídos pelo poder "explosão"
