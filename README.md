@@ -36,8 +36,11 @@ polígonos do pygame e os efeitos sonoros/música são sintetizados na hora
   eles ficam mais rápidos. Metade se move de um lado para o outro
   ("vaivém"), a outra metade faz um movimento de onda. Todos atiram mirando
   na nave. Bater num inimigo também tira uma vida.
-- Pontos: 100 por acerto, +500 por inimigo destruído. O recorde da sessão
-  aparece na tela de fim.
+- **Pontos e moedas:** cada inimigo destruído vale **10 pontos** (chefe: 50 ×
+  nº do chefe) e **cada ponto vira 1 moeda** para gastar na loja. O recorde
+  da sessão aparece na tela de fim.
+- Os menus funcionam por **teclado e mouse** (botões clicáveis). A **janela
+  pode ser redimensionada**: o jogo é escalado mantendo a proporção 4:3.
 
 ### Níveis (infinitos)
 
@@ -62,8 +65,9 @@ vale 200 pontos por acerto e 5000 × número do chefe ao ser destruído.
 
 ### Poderes
 
-Quando um inimigo é destruído pode cair um poder (o primeiro do nível e o
-chefe sempre soltam; os demais têm 40% de chance). Pegue encostando a nave.
+**Metade dos inimigos** de cada fase (sorteados na montagem da fase; o chefe
+sempre) solta poder ao morrer — não importa como morreu, congelado ou não.
+Pegue encostando a nave.
 **Os poderes valem só na fase em que foram pegos** — exceto a vida extra,
 que acumula.
 
@@ -87,13 +91,27 @@ que acumula.
 ### Especiais (carregam com o tempo)
 
 Ficam no canto inferior direito com uma barra de carga. Quando a barra
-enche, aperte a tecla para usar; depois ela recarrega do zero.
+enche toca um sino (um som diferente para cada especial); aperte a tecla
+para usar e ela recarrega do zero.
 
 | Tecla | Especial   | Carga | Efeito                                              |
 |-------|------------|-------|-----------------------------------------------------|
 | 1     | Vida extra | 30 s  | +1 vida (respeita o teto; se estiver no teto, mantém a carga) |
 | 2     | Explosão   | 60 s  | Destrói até 3 inimigos aleatórios (não afeta o chefe) |
 | 3     | Tempestade | 90 s  | 1 de dano em **todos** os inimigos, chefe incluso   |
+
+### Loja (fim de cada nível)
+
+Na tela "NÍVEL N" aperte **L** ou clique em **LOJA** para gastar as moedas
+da partida. No menu inicial a loja abre só para visualização. Tudo é
+perdido ao começar uma nova partida.
+
+| Item                    | Máx. | Preços (por nível) | Efeito                                   |
+|-------------------------|------|--------------------|------------------------------------------|
+| Velocidade de movimento | 3    | 40 / 80 / 120      | +1 de velocidade da nave por nível       |
+| Velocidade de tiro      | 3    | 50 / 100 / 150     | 3 frames a menos entre tiros por nível   |
+| Potência do tiro        | 3    | 60 / 120 / 180     | +1 de dano por tiro (nível 2 mata inimigo comum em 1 tiro) |
+| Ressurgir               | 1    | 150                | Ao morrer, **R**/botão RESSURGIR continua de onde parou com 3 vidas |
 
 ## Controles
 
@@ -102,10 +120,12 @@ enche, aperte a tecla para usar; depois ela recarrega do zero.
 | Setas / W A S D    | Mover a nave                    |
 | Espaço             | Atirar (pode segurar)           |
 | 1 / 2 / 3          | Usar especial (quando carregado) |
+| L                  | Abrir a loja (fim de nível / menu) |
+| Mouse              | Clicar nos botões dos menus     |
 | ESC                | Pausar / abrir o menu de pausa  |
 | Enter              | Confirmar / começar             |
 | Setas Cima/Baixo   | Navegar no menu de pausa        |
-| R                  | Reiniciar (na pausa ou no fim)  |
+| R                  | Reiniciar (pausa) / Ressurgir (fim) |
 | M                  | Ligar / desligar o som          |
 | Q                  | Sair do jogo                    |
 
@@ -116,9 +136,9 @@ pausa, e é impressa no terminal quando o jogo abre.
 
 | Arquivo                        | O que faz                                                          |
 |--------------------------------|--------------------------------------------------------------------|
-| [main.py](main.py)             | Laço principal (`while`), máquina de estados MENU/NIVEL/JOGANDO/PAUSA/FIM, níveis, chefe, poderes, especiais, colisões |
+| [main.py](main.py)             | Laço principal (`while`), máquina de estados MENU/NIVEL/JOGANDO/PAUSA/LOJA/FIM, níveis, chefe, poderes, especiais, loja, colisões, escala da janela |
 | [entidades.py](entidades.py)   | Classes `Nave`, `Inimigo` (com barra de vida), `Chefe`, `Tiro`, `Poder` (catálogo `PODERES`), `Explosao`, `Estrela` |
-| [interface.py](interface.py)   | HUD, tela inicial, tela de nível, menu de pausa, tela de fim e a lista de controles |
+| [interface.py](interface.py)   | HUD, `Botao` (mouse), tela inicial, tela de nível, menu de pausa, loja, tela de fim e a lista de controles |
 | [sons.py](sons.py)             | Síntese dos efeitos sonoros e da música de fundo                   |
 | [config.py](config.py)         | Constantes: tamanho da tela, cores, velocidades, vidas, pontos     |
 

@@ -19,8 +19,9 @@ import config as cfg
 class Tiro:
     """Um projétil. `dono` é "nave" (sobe) ou "inimigo" (desce)."""
 
-    def __init__(self, x, y, dono, vel_x=0.0, vel_y=None, cor=None):
+    def __init__(self, x, y, dono, vel_x=0.0, vel_y=None, cor=None, dano=1):
         self.dono = dono
+        self.dano = dano
         self.x = float(x)
         self.y = float(y)
         self.vel_x = vel_x
@@ -47,9 +48,11 @@ class Tiro:
                 or self.rect.right < 0 or self.rect.left > cfg.LARGURA)
 
     def desenhar(self, tela):
-        pygame.draw.rect(tela, self.cor, self.rect, border_radius=2)
+        # tiros mais fortes (upgrade de potência) são desenhados mais largos
+        r = self.rect.inflate(2 * (self.dano - 1), 0)
+        pygame.draw.rect(tela, self.cor, r, border_radius=2)
         # miolo branco para dar "brilho" ao tiro
-        pygame.draw.rect(tela, cfg.BRANCO, self.rect.inflate(-2, -6), border_radius=2)
+        pygame.draw.rect(tela, cfg.BRANCO, r.inflate(-2, -6), border_radius=2)
 
 
 class Nave:
@@ -68,6 +71,20 @@ class Nave:
         self.escudo = False        # absorve o próximo dano
         self.tiro_duplo = 0        # frames restantes de tiro duplo
         self.tiro_rapido = 0       # frames restantes de tiro rápido
+        # upgrades comprados na loja (nível 0 a 3)
+        self.upgrades = {"movimento": 0, "cadencia": 0, "potencia": 0}
+
+    @property
+    def velocidade(self):
+        return cfg.NAVE_VELOCIDADE + cfg.UPGRADE_MOVIMENTO * self.upgrades["movimento"]
+
+    @property
+    def intervalo_tiro(self):
+        return max(3, cfg.NAVE_INTERVALO_TIRO - cfg.UPGRADE_CADENCIA * self.upgrades["cadencia"])
+
+    @property
+    def dano(self):
+        return 1 + cfg.UPGRADE_POTENCIA * self.upgrades["potencia"]
 
     @property
     def viva(self):
@@ -75,14 +92,15 @@ class Nave:
 
     def mover(self, teclas):
         dx = dy = 0
+        vel = self.velocidade
         if teclas[pygame.K_LEFT] or teclas[pygame.K_a]:
-            dx -= cfg.NAVE_VELOCIDADE
+            dx -= vel
         if teclas[pygame.K_RIGHT] or teclas[pygame.K_d]:
-            dx += cfg.NAVE_VELOCIDADE
+            dx += vel
         if teclas[pygame.K_UP] or teclas[pygame.K_w]:
-            dy -= cfg.NAVE_VELOCIDADE
+            dy -= vel
         if teclas[pygame.K_DOWN] or teclas[pygame.K_s]:
-            dy += cfg.NAVE_VELOCIDADE
+            dy += vel
         self.rect.x += dx
         self.rect.y += dy
         # mantém a nave dentro da tela e na metade de baixo
@@ -107,13 +125,13 @@ class Nave:
         """
         if self.cooldown > 0:
             return []
-        self.cooldown = cfg.NAVE_INTERVALO_TIRO
+        self.cooldown = self.intervalo_tiro
         if self.tiro_rapido > 0:
             self.cooldown //= 2
         if self.tiro_duplo > 0:
-            return [Tiro(self.rect.centerx - 10, self.rect.top + 6, "nave"),
-                    Tiro(self.rect.centerx + 10, self.rect.top + 6, "nave")]
-        return [Tiro(self.rect.centerx, self.rect.top, "nave")]
+            return [Tiro(self.rect.centerx - 10, self.rect.top + 6, "nave", dano=self.dano),
+                    Tiro(self.rect.centerx + 10, self.rect.top + 6, "nave", dano=self.dano)]
+        return [Tiro(self.rect.centerx, self.rect.top, "nave", dano=self.dano)]
 
     def receber_dano(self):
         """Aplica um dano. Devolve "nada" (estava invencível), "escudo"
@@ -207,8 +225,8 @@ class Inimigo:
         self.piscar = 0                                 # frames de "flash" ao ser atingido
         self.congelado = 0                              # frames parado (poder "congelar")
         self.chefe = False
-        self.pontos_acerto = cfg.PONTOS_ACERTO
-        self.pontos_morte = cfg.PONTOS_DESTRUIR
+        self.pontos_morte = cfg.PONTOS_INIMIGO
+        self.solta_poder = False                        # decidido pelo Jogo ao montar a fase
 
     @property
     def vivo(self):
@@ -249,9 +267,9 @@ class Inimigo:
         vel_x = max(-3.0, min(3.0, vel_x))
         return Tiro(self.rect.centerx, self.rect.bottom, "inimigo", vel_x)
 
-    def receber_dano(self):
-        """Perde 1 de vida e fica mais rápido. Devolve True se morreu."""
-        self.vida -= 1
+    def receber_dano(self, dano=1):
+        """Perde `dano` de vida e fica mais rápido. Devolve True se morreu."""
+        self.vida -= dano
         self.piscar = 8
         self.velocidade += 0.6
         return self.vida <= 0
@@ -315,8 +333,8 @@ class Chefe(Inimigo):
         self.chance_tiro = cfg.CHEFE_CHANCE_TIRO + cfg.CHEFE_CHANCE_EXTRA * (tier - 1)
         self.tiros_por_rajada = min(cfg.CHEFE_TIROS_MAX, cfg.CHEFE_TIROS_BASE + cfg.CHEFE_TIROS_EXTRA * (tier - 1))
         self.vel_tiro = cfg.TIRO_VEL_INIMIGO + 0.5 * (tier - 1)
-        self.pontos_acerto = cfg.PONTOS_CHEFE_ACERTO
         self.pontos_morte = cfg.PONTOS_CHEFE * tier
+        self.solta_poder = True                         # o chefe sempre solta poder
 
     def tentar_atirar(self, alvo_rect):
         """Rajada em leque: vários tiros abrindo a partir do centro do chefe."""
@@ -332,9 +350,9 @@ class Chefe(Inimigo):
                               vel_x, self.vel_tiro, cfg.ROSA))
         return tiros
 
-    def receber_dano(self):
+    def receber_dano(self, dano=1):
         """O chefe não acelera a cada acerto como os inimigos comuns."""
-        self.vida -= 1
+        self.vida -= dano
         self.piscar = 6
         return self.vida <= 0
 

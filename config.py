@@ -47,9 +47,10 @@ TIRO_VEL_INIMIGO = 5
 TIRO_LARGURA = 4
 TIRO_ALTURA = 12
 
-# --- Pontuação ----------------------------------------------------------
-PONTOS_ACERTO = 100
-PONTOS_DESTRUIR = 500
+# --- Pontuação e moedas ---------------------------------------------------
+PONTOS_INIMIGO = 10           # cada inimigo destruído vale 10 pontos...
+PONTOS_CHEFE = 50             # ...e o chefe 50 x número do chefe
+MOEDAS_POR_PONTO = 1          # cada ponto ganho vira 1 moeda para a loja
 
 # --- Cenário ------------------------------------------------------------
 QTD_ESTRELAS = 90
@@ -64,7 +65,7 @@ NIVEIS_SEM_REPETIR = 4        # até esse nível os poderes não se repetem
 # --- Poderes --------------------------------------------------------------
 NAVE_VIDAS_MAX = 5           # (teto mínimo; ver VIDAS_TETO_MIN)
 PODER_VEL_QUEDA = 2.0
-PODER_CHANCE = 0.4            # chance de cair poder nas mortes seguintes à 1ª do nível
+PODER_FRACAO = 0.5            # fração dos inimigos de cada fase que carrega poder
 PODER_DURACAO = 12 * FPS      # frames de tiro duplo / tiro rápido
 CONGELAR_DURACAO = 5 * FPS
 EXPLOSAO_ALVOS = 3            # inimigos destruídos pelo poder "explosão"
@@ -83,8 +84,6 @@ CHEFE_TIROS_BASE = 3          # tiros por rajada (leque) do 1º chefe
 CHEFE_TIROS_EXTRA = 2         # tiros a mais por chefe (máximo CHEFE_TIROS_MAX)
 CHEFE_TIROS_MAX = 9
 CHEFE_ESCOLTA = 0.5           # fração dos inimigos normais que acompanha o chefe
-PONTOS_CHEFE_ACERTO = 200
-PONTOS_CHEFE = 5000
 
 # --- Vidas acumuladas -------------------------------------------------------
 VIDAS_TETO_MIN = 5            # teto de vidas = max(VIDAS_TETO_MIN, inimigos // 2)
@@ -96,3 +95,18 @@ ESPECIAIS = [
     ("explosao", "Explosão", 60),
     ("tempestade", "Tempestade", 90),
 ]
+
+# --- Loja (upgrades por partida) --------------------------------------------
+LOJA = {
+    "movimento": {"nome": "Velocidade de movimento", "max": 3, "precos": [40, 80, 120],
+                  "desc": "+1 de velocidade da nave por nível"},
+    "cadencia":  {"nome": "Velocidade de tiro", "max": 3, "precos": [50, 100, 150],
+                  "desc": "Atira mais rápido a cada nível"},
+    "potencia":  {"nome": "Potência do tiro", "max": 3, "precos": [60, 120, 180],
+                  "desc": "+1 de dano por tiro a cada nível"},
+    "ressurgir": {"nome": "Ressurgir", "max": 1, "precos": [150],
+                  "desc": "Morreu? Continua de onde parou com 3 vidas"},
+}
+UPGRADE_MOVIMENTO = 1         # velocidade extra por nível do upgrade
+UPGRADE_CADENCIA = 3          # frames a menos entre tiros por nível
+UPGRADE_POTENCIA = 1          # dano extra por nível

@@ -103,6 +103,13 @@ def carregar_sons():
         "menu": _para_som(_onda(660, 990, 0.08, "seno", 0.25)),
         "vitoria": _para_som(_onda(440, 1320, 0.8, "triangulo", 0.35)),
         "poder": _para_som(_nota(523.25, 0.12, 0.3) + _nota(659.25, 0.12, 0.3) + _nota(783.99, 0.2, 0.3)),
+        # cada especial tem um "sino" diferente quando termina de carregar
+        "carga1": _para_som(_nota(659.25, 0.15, 0.3) + _nota(880.0, 0.3, 0.3)),
+        "carga2": _para_som(_nota(587.33, 0.12, 0.3) + _nota(783.99, 0.12, 0.3) + _nota(1174.66, 0.35, 0.3)),
+        "carga3": _para_som(_nota(523.25, 0.1, 0.3) + _nota(659.25, 0.1, 0.3) + _nota(783.99, 0.1, 0.3)
+                            + _nota(1046.5, 0.4, 0.35)),
+        "compra": _para_som(_nota(1046.5, 0.08, 0.3) + _nota(1318.5, 0.15, 0.3)),
+        "erro": _para_som(_onda(220, 110, 0.25, "quadrada", 0.25)),
         "derrota": _para_som(_onda(330, 55, 1.2, "quadrada", 0.3)),
         "musica": _para_som(_musica_fundo()),
     }
