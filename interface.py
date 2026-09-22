@@ -15,6 +15,7 @@ from entidades import PODERES
 CONTROLES = [
     ("Setas / W A S D", "Mover a nave"),
     ("Espaço", "Atirar"),
+    ("1 / 2 / 3", "Usar especial (quando carregado)"),
     ("ESC", "Pausar / abrir o menu"),
     ("Enter", "Confirmar / começar"),
     ("Setas Cima/Baixo", "Navegar no menu"),
@@ -86,7 +87,8 @@ def desenhar_controles(tela, fontes, y_inicial, titulo=True):
 # HUD (durante o jogo)
 # ---------------------------------------------------------------------------
 
-def desenhar_hud(tela, fontes, nave, inimigos, pontos, som_ligado, nivel, poder_nivel):
+def desenhar_hud(tela, fontes, nave, inimigos, pontos, som_ligado, nivel, poderes_nivel,
+                 especiais, teto_vidas, piscar):
     # faixa escura no topo
     faixa = pygame.Surface((cfg.LARGURA, 44), pygame.SRCALPHA)
     faixa.fill((0, 0, 0, 120))
@@ -95,7 +97,8 @@ def desenhar_hud(tela, fontes, nave, inimigos, pontos, som_ligado, nivel, poder_
     # vidas: um ícone de nave para cada vida restante
     texto(tela, fontes.pequena, "VIDAS", 12, 12, cfg.CINZA, alinhar="esquerda")
     for i in range(nave.vidas):
-        nave.desenhar_icone(tela, 80 + i * 30, 8)
+        nave.desenhar_icone(tela, 80 + i * 26, 8)
+    texto(tela, fontes.pequena, f"{nave.vidas}/{teto_vidas}", 84 + nave.vidas * 26, 12, cfg.CINZA, alinhar="esquerda")
 
     # nível e inimigos restantes
     vivos = sum(1 for ini in inimigos if ini.vivo)
@@ -124,10 +127,51 @@ def desenhar_hud(tela, fontes, nave, inimigos, pontos, som_ligado, nivel, poder_
         texto(tela, fontes.pequena, rotulo, 38, y - 9, info["cor"], alinhar="esquerda")
         y -= 24
 
-    # poder que cai dos inimigos neste nível
-    info = PODERES[poder_nivel]
-    texto(tela, fontes.pequena, f"Poder do nível: {info['nome']}", cfg.LARGURA // 2,
-          cfg.ALTURA - 16, info["cor"])
+    # poder(es) que caem dos inimigos neste nível: rótulo + um ícone por poder
+    rotulo = "Poder do nível:" if len(poderes_nivel) == 1 else "Poderes do nível:"
+    largura_total = fontes.pequena.size(rotulo)[0] + 8 + len(poderes_nivel) * 28
+    x = cfg.LARGURA // 2 - largura_total // 2
+    texto(tela, fontes.pequena, rotulo, x, cfg.ALTURA - 26, cfg.CINZA, alinhar="esquerda")
+    x += fontes.pequena.size(rotulo)[0] + 8 + 12
+    for tipo in poderes_nivel:
+        info = PODERES[tipo]
+        pygame.draw.circle(tela, info["cor"], (x, cfg.ALTURA - 16), 11)
+        pygame.draw.circle(tela, cfg.BRANCO, (x, cfg.ALTURA - 16), 11, 1)
+        letra = fontes.pequena.render(info["letra"], True, cfg.PRETO)
+        tela.blit(letra, letra.get_rect(center=(x, cfg.ALTURA - 16)))
+        x += 28
+
+    # barra de vida grande do chefe (logo abaixo da faixa do HUD)
+    for ini in inimigos:
+        if ini.vivo and ini.chefe:
+            largura = 400
+            x = cfg.LARGURA // 2 - largura // 2
+            y = 50
+            proporcao = ini.vida / ini.vida_max
+            pygame.draw.rect(tela, cfg.CINZA, (x, y, largura, 12), border_radius=4)
+            pygame.draw.rect(tela, (220, 50, 80), (x, y, int(largura * proporcao), 12), border_radius=4)
+            pygame.draw.rect(tela, cfg.BRANCO, (x, y, largura, 12), 1, border_radius=4)
+            texto(tela, fontes.pequena, f"{ini.nome}  {ini.vida}/{ini.vida_max}", cfg.LARGURA // 2, y + 22, cfg.ROSA)
+
+    # especiais (canto inferior direito): barra de carga + tecla
+    y = cfg.ALTURA - 52
+    for i, esp in enumerate(especiais):
+        largura = 120
+        x = cfg.LARGURA - 12 - largura
+        proporcao = min(1.0, esp["carga"] / esp["total"])
+        pronto = proporcao >= 1.0
+        cor = cfg.VERDE if pronto else cfg.CINZA
+        pygame.draw.rect(tela, (40, 40, 50), (x, y - 6, largura, 12), border_radius=3)
+        pygame.draw.rect(tela, cor, (x, y - 6, int(largura * proporcao), 12), border_radius=3)
+        pygame.draw.rect(tela, cfg.BRANCO, (x, y - 6, largura, 12), 1, border_radius=3)
+        if pronto:
+            estado = "PRONTO" if piscar else ""
+            cor_txt = cfg.VERDE
+        else:
+            estado = f"{(esp['total'] - esp['carga']) // cfg.FPS + 1}s"
+            cor_txt = cfg.CINZA
+        texto(tela, fontes.pequena, f"[{i + 1}] {esp['nome']} {estado}", x - 8, y - 9, cor_txt, alinhar="direita")
+        y -= 24
 
     # pontuação
     texto(tela, fontes.media, f"{pontos:06d}", cfg.LARGURA - 12, 8, cfg.AMARELO, alinhar="direita")
@@ -136,7 +180,7 @@ def desenhar_hud(tela, fontes, nave, inimigos, pontos, som_ligado, nivel, poder_
     # indicador de som e dica do ESC
     icone_som = "SOM: ON" if som_ligado else "SOM: OFF"
     texto(tela, fontes.pequena, icone_som, cfg.LARGURA - 12, cfg.ALTURA - 26, cfg.CINZA, alinhar="direita")
-    texto(tela, fontes.pequena, "ESC = pausa   M = som", 12, cfg.ALTURA - 26, cfg.CINZA, alinhar="esquerda")
+    texto(tela, fontes.pequena, "ESC = pausa", 12, cfg.ALTURA - 26, cfg.CINZA, alinhar="esquerda")
 
 
 # ---------------------------------------------------------------------------
@@ -212,38 +256,59 @@ def desenhar_fim(tela, fontes, nivel, pontos, recorde, piscar):
 
     if piscar:
         texto(tela, fontes.media, "ENTER ou R = jogar de novo", cfg.LARGURA // 2, 400, cfg.CIANO)
-    texto(tela, fontes.pequena, "M = menu inicial      Q = sair", cfg.LARGURA // 2, 440, cfg.CINZA)
+    texto(tela, fontes.pequena, "ESC ou M = menu inicial      Q = sair", cfg.LARGURA // 2, 440, cfg.CINZA)
 
 
 # ---------------------------------------------------------------------------
 # Tela entre níveis
 # ---------------------------------------------------------------------------
 
-def desenhar_nivel(tela, fontes, nivel, qtd_inimigos, poder_nivel):
-    """Aviso de "NÍVEL N" com o poder que vai cair dos inimigos."""
-    escurecer(tela, 140)
-    texto(tela, fontes.titulo, f"NÍVEL {nivel}", cfg.LARGURA // 2, 150, cfg.AMARELO)
-    texto(tela, fontes.media, f"{qtd_inimigos} inimigos  -  vidas restauradas", cfg.LARGURA // 2, 210, cfg.BRANCO)
+def desenhar_nivel(tela, fontes, nivel, qtd_inimigos, poderes_nivel, tem_chefe, teto_vidas):
+    """Aviso de "NÍVEL N" com o(s) poder(es) que vão cair dos inimigos."""
+    escurecer(tela, 160)
+    texto(tela, fontes.titulo, f"NÍVEL {nivel}", cfg.LARGURA // 2, 120, cfg.AMARELO)
+    if tem_chefe:
+        texto(tela, fontes.grande, "!!! CHEFE !!!", cfg.LARGURA // 2, 175, cfg.ROSA)
+        texto(tela, fontes.media, f"{qtd_inimigos} inimigos  -  vidas restauradas (teto {teto_vidas})",
+              cfg.LARGURA // 2, 210, cfg.BRANCO)
+    else:
+        texto(tela, fontes.media, f"{qtd_inimigos} inimigos  -  vidas restauradas (teto {teto_vidas})",
+              cfg.LARGURA // 2, 180, cfg.BRANCO)
 
-    info = PODERES[poder_nivel]
-    pygame.draw.circle(tela, info["cor"], (cfg.LARGURA // 2, 290), 22)
-    pygame.draw.circle(tela, cfg.BRANCO, (cfg.LARGURA // 2, 290), 22, 2)
-    texto(tela, fontes.media, info["letra"], cfg.LARGURA // 2, 290, cfg.PRETO)
-    texto(tela, fontes.media, f"Poder deste nível: {info['nome']}", cfg.LARGURA // 2, 335, info["cor"])
-    texto(tela, fontes.pequena, info["desc"], cfg.LARGURA // 2, 362, cfg.BRANCO)
-    texto(tela, fontes.pequena, "Cai quando um inimigo é destruído - pegue encostando nele",
-          cfg.LARGURA // 2, 386, cfg.CINZA)
+    # ícones dos poderes do nível, lado a lado
+    n = len(poderes_nivel)
+    espaco = 60
+    x0 = cfg.LARGURA // 2 - (n - 1) * espaco // 2
+    for i, tipo in enumerate(poderes_nivel):
+        info = PODERES[tipo]
+        cx = x0 + i * espaco
+        pygame.draw.circle(tela, info["cor"], (cx, 270), 22)
+        pygame.draw.circle(tela, cfg.BRANCO, (cx, 270), 22, 2)
+        texto(tela, fontes.media, info["letra"], cx, 270, cfg.PRETO)
+    nomes = " + ".join(PODERES[t]["nome"] for t in poderes_nivel)
+    rotulo = "Poder deste nível: " if n == 1 else "Poderes deste nível: "
+    texto(tela, fontes.media, rotulo + nomes, cfg.LARGURA // 2, 315, PODERES[poderes_nivel[0]]["cor"])
+    texto(tela, fontes.pequena, "Caem de inimigos destruídos - pegue encostando. Valem só nesta fase.",
+          cfg.LARGURA // 2, 342, cfg.CINZA)
 
-    # legenda de todos os poderes
-    y = 424
+    # painel opaco embaixo (cobre o HUD) com a legenda de poderes e especiais
+    pygame.draw.rect(tela, cfg.PRETO, (0, 362, cfg.LARGURA, cfg.ALTURA - 362))
+    y = 380
     texto(tela, fontes.pequena, "PODERES", cfg.LARGURA // 2, y, cfg.AMARELO)
-    y += 24
+    y += 22
     for tipo in PODERES:
         p = PODERES[tipo]
-        pygame.draw.circle(tela, p["cor"], (cfg.LARGURA // 2 - 190, y + 8), 8)
-        texto(tela, fontes.pequena, f"{p['nome']}: {p['desc']}", cfg.LARGURA // 2 - 175, y, cfg.BRANCO, alinhar="esquerda")
+        pygame.draw.circle(tela, p["cor"], (cfg.LARGURA // 2 - 250, y + 8), 8)
+        texto(tela, fontes.pequena, f"{p['nome']}: {p['desc']}", cfg.LARGURA // 2 - 235, y, cfg.BRANCO, alinhar="esquerda")
         y += 19
+
+    y += 14
+    texto(tela, fontes.pequena, "ESPECIAIS (teclas 1/2/3, carregam com o tempo)", cfg.LARGURA // 2, y, cfg.AMARELO)
+    y += 22
+    texto(tela, fontes.pequena,
+          "     ".join(f"[{i + 1}] {nome} {seg}s" for i, (_, nome, seg) in enumerate(cfg.ESPECIAIS)),
+          cfg.LARGURA // 2, y, cfg.CIANO)
 
     # faixa opaca embaixo para o aviso não se misturar com o rodapé do HUD
     pygame.draw.rect(tela, cfg.PRETO, (0, cfg.ALTURA - 30, cfg.LARGURA, 30))
-    texto(tela, fontes.pequena, "ENTER para começar", cfg.LARGURA // 2, cfg.ALTURA - 14, cfg.AMARELO)
+    texto(tela, fontes.pequena, "Pressione qualquer tecla para começar", cfg.LARGURA // 2, cfg.ALTURA - 14, cfg.AMARELO)

@@ -8,12 +8,15 @@ Como funciona:
 - Você controla a nave azul (embaixo) e precisa destruir as naves inimigas
   (em cima), que se movem e atiram contra você.
 - O jogo tem níveis infinitos: o nível 1 tem 2 inimigos e cada nível novo
-  adiciona mais um. A cada nível as 3 vidas da nave são restauradas; o jogo
-  acaba quando as 3 vidas se esgotam.
+  adiciona mais um. A cada nível as vidas voltam para pelo menos 3 (vidas
+  extras acumuladas são mantidas); o jogo acaba quando as vidas se esgotam.
+- A cada 5 níveis aparece um CHEFE, cada vez mais forte.
 - Cada inimigo tem 3 pontos de vida, mostrados numa barra em cima dele.
 - Quando um inimigo é destruído pode cair um PODER (tiro duplo, escudo,
-  explosão, vida extra, congelar, tiro rápido). Cada nível tem um poder;
-  até o nível 4 eles não se repetem, do 5 em diante é sorteado.
+  explosão, vida extra, congelar, tiro rápido). Até o nível 4 cai um poder
+  por nível, sem repetir; do 5 em diante caem combinações (duplas, depois
+  trios...). Os poderes valem só na fase em que foram pegos.
+- Há ESPECIAIS que carregam com o tempo e são usados com as teclas 1/2/3.
 - ESC abre o menu de pausa. Os controles completos aparecem na tela inicial
   e no menu de pausa (e também são impressos no terminal ao iniciar).
 
@@ -22,6 +25,8 @@ O jogo é uma máquina de estados: MENU -> NIVEL -> JOGANDO <-> PAUSA -> FIM.
 
 from __future__ import annotations
 
+import itertools
+import math
 import random
 import sys
 
@@ -29,7 +34,7 @@ import pygame
 
 import config as cfg
 import interface as ui
-from entidades import PODERES, Estrela, Explosao, Inimigo, Nave, Poder
+from entidades import PODERES, Chefe, Estrela, Explosao, Inimigo, Nave, Poder
 from sons import carregar_sons
 
 # Estados possíveis do jogo
@@ -61,6 +66,7 @@ class Jogo:
 
         self.estrelas = [Estrela() for _ in range(cfg.QTD_ESTRELAS)]
         self.estado = MENU
+        self.estado_antes_pausa = JOGANDO
         self.rodando = True
         self.frame = 0
         self.opcao_pausa = 0
@@ -82,42 +88,91 @@ class Jogo:
         # ordem dos poderes dos primeiros níveis (sem repetir)
         self.ordem_poderes = list(PODERES)
         random.shuffle(self.ordem_poderes)
+        # combinações já usadas a partir do nível 5 (duplas, trios...)
+        self.combos_usados = set()
+        self.tamanho_combo = 2
+        # especiais: cada um tem uma carga em frames que enche com o tempo
+        self.especiais = [{"tipo": tipo, "nome": nome, "carga": 0, "total": seg * cfg.FPS}
+                          for tipo, nome, seg in cfg.ESPECIAIS]
         print("[jogo] nova partida")
         self.proximo_nivel()
 
     def proximo_nivel(self):
-        """Avança de nível: mais um inimigo, vidas restauradas, novo poder."""
+        """Avança de nível: mais um inimigo, vidas restauradas, novos poderes."""
         self.nivel += 1
-        self.nave.vidas = cfg.NAVE_VIDAS
+        # vidas voltam a pelo menos 3; vidas extras acumuladas são mantidas
+        self.nave.vidas = max(cfg.NAVE_VIDAS, self.nave.vidas)
         self.nave.invencivel = cfg.NAVE_INVENCIVEL // 2
+        self.nave.limpar_poderes()          # poderes valem só na fase em que caíram
         self.tiros_nave = []
         self.tiros_inimigos = []
         self.explosoes = []
         self.poderes = []
         self.primeira_morte = True          # o 1º inimigo do nível sempre solta poder
 
-        # até NIVEIS_SEM_REPETIR o poder é diferente a cada nível; depois sorteia
-        if self.nivel <= cfg.NIVEIS_SEM_REPETIR:
-            self.poder_nivel = self.ordem_poderes[(self.nivel - 1) % len(self.ordem_poderes)]
-        else:
-            self.poder_nivel = random.choice(self.ordem_poderes)
-
+        self.poderes_nivel = self.sortear_poderes()
+        self.tem_chefe = self.nivel % cfg.CHEFE_A_CADA == 0
         self.inimigos = self.criar_inimigos(cfg.INIMIGOS_NIVEL_1 + self.nivel - 1)
-        self.timer_nivel = cfg.NIVEL_TELA_FRAMES
+        # teto de vidas: 5 ou metade dos inimigos na tela, o que for maior
+        self.teto_vidas = max(cfg.VIDAS_TETO_MIN, len(self.inimigos) // 2)
         self.estado = NIVEL
-        print(f"[nível {self.nivel}] {len(self.inimigos)} inimigos | poder: {PODERES[self.poder_nivel]['nome']}"
-              f" | vidas: {self.nave.vidas}")
+        nomes = " + ".join(PODERES[t]["nome"] for t in self.poderes_nivel)
+        print(f"[nível {self.nivel}] {len(self.inimigos)} inimigos{' (com CHEFE)' if self.tem_chefe else ''}"
+              f" | poderes: {nomes} | vidas: {self.nave.vidas}/{self.teto_vidas}")
+
+    def sortear_poderes(self):
+        """Decide quais poderes caem neste nível.
+
+        - Níveis 1 a NIVEIS_SEM_REPETIR: um poder por nível, sem repetir.
+        - Depois: combinações de `tamanho_combo` poderes sorteadas sem repetir;
+          quando todas as duplas acabam passa para trios, depois quartetos...
+          até todos os poderes juntos. Aí volta a sortear qualquer combinação.
+        """
+        if self.nivel <= cfg.NIVEIS_SEM_REPETIR:
+            return [self.ordem_poderes[(self.nivel - 1) % len(self.ordem_poderes)]]
+
+        todos = list(PODERES)
+        while True:
+            if self.tamanho_combo > len(todos):
+                # já saíram todas as combinações possíveis: sorteia qualquer uma
+                tamanho = random.randint(2, len(todos))
+                return random.sample(todos, tamanho)
+            possiveis = [c for c in itertools.combinations(todos, self.tamanho_combo)
+                         if c not in self.combos_usados]
+            if possiveis:
+                combo = random.choice(possiveis)
+                self.combos_usados.add(combo)
+                return list(combo)
+            self.tamanho_combo += 1            # acabaram as duplas -> trios, etc.
 
     def criar_inimigos(self, quantidade):
-        """Distribui `quantidade` inimigos em linhas de até 4 no topo da tela."""
+        """Distribui os inimigos em linhas de até 4 no topo da tela.
+
+        Em nível de chefe, o chefe fica no centro e só metade dos inimigos
+        normais aparece, como escolta.
+        """
         inimigos = []
-        por_linha = 4
+        if self.tem_chefe:
+            tier = self.nivel // cfg.CHEFE_A_CADA
+            inimigos.append(Chefe(cfg.LARGURA // 2, 130, tier, self.nivel))
+            quantidade = math.ceil(quantidade * cfg.CHEFE_ESCOLTA)
+            y_inicial = 250
+        else:
+            y_inicial = 110
+
+        # linhas mais cheias quando há muitos inimigos, para não descerem demais
+        if quantidade <= 8:
+            por_linha = 4
+        elif quantidade <= 18:
+            por_linha = 6
+        else:
+            por_linha = 8
         for i in range(quantidade):
             linha = i // por_linha
             coluna = i % por_linha
             nesta_linha = min(por_linha, quantidade - linha * por_linha)
             x = cfg.LARGURA * (coluna + 1) / (nesta_linha + 1)
-            y = 110 + linha * 70
+            y = y_inicial + linha * 70
             padrao = "vaivem" if i % 2 == 0 else "onda"
             cor = CORES_INIMIGOS[i % len(CORES_INIMIGOS)]
             inimigos.append(Inimigo(x, y, padrao=padrao, cor=cor, nome=f"Inimigo {i + 1}", nivel=self.nivel))
@@ -174,24 +229,36 @@ class Jogo:
             self.rodando = False
 
     def teclas_nivel(self, tecla):
-        if tecla in (pygame.K_RETURN, pygame.K_KP_ENTER, pygame.K_SPACE):
-            self.timer_nivel = 0            # pula a espera
-        elif tecla == pygame.K_ESCAPE:
-            self.estado = PAUSA
-            self.opcao_pausa = 0
+        # a fase só começa quando o jogador aperta uma tecla
+        if tecla == pygame.K_ESCAPE:
+            self.pausar(vindo_de=NIVEL)
         elif tecla == pygame.K_m:
             self.alternar_som()
+        else:
+            self.estado = JOGANDO
+            self.tocar("menu")
+            print(f"[nível {self.nivel}] começou!")
 
     def teclas_jogando(self, tecla):
         if tecla == pygame.K_ESCAPE:
-            self.estado = PAUSA
-            self.opcao_pausa = 0
-            self.tocar("menu")
-            print("[jogo] pausado")
+            self.pausar(vindo_de=JOGANDO)
         elif tecla == pygame.K_m:
             self.alternar_som()
+        elif tecla in (pygame.K_1, pygame.K_KP1):
+            self.usar_especial(0)
+        elif tecla in (pygame.K_2, pygame.K_KP2):
+            self.usar_especial(1)
+        elif tecla in (pygame.K_3, pygame.K_KP3):
+            self.usar_especial(2)
         # o tiro (ESPAÇO) é tratado em `atualizar_jogo` com get_pressed(),
         # para poder segurar a tecla e atirar continuamente
+
+    def pausar(self, vindo_de):
+        self.estado_antes_pausa = vindo_de
+        self.estado = PAUSA
+        self.opcao_pausa = 0
+        self.tocar("menu")
+        print("[jogo] pausado")
 
     def teclas_pausa(self, tecla):
         if tecla == pygame.K_UP:
@@ -213,7 +280,7 @@ class Jogo:
 
     def executar_opcao_pausa(self, acao):
         if acao == "continuar":
-            self.estado = JOGANDO
+            self.estado = self.estado_antes_pausa
             print("[jogo] continuando")
         elif acao == "reiniciar":
             self.nova_partida()
@@ -229,9 +296,9 @@ class Jogo:
         if tecla in (pygame.K_RETURN, pygame.K_KP_ENTER, pygame.K_r):
             self.tocar("menu")
             self.nova_partida()
-        elif tecla == pygame.K_m:
+        elif tecla in (pygame.K_m, pygame.K_ESCAPE):
             self.estado = MENU
-        elif tecla in (pygame.K_q, pygame.K_ESCAPE):
+        elif tecla == pygame.K_q:
             self.rodando = False
 
     # ------------------------------------------------------------------
@@ -243,6 +310,11 @@ class Jogo:
         self.nave.mover(teclas)
         self.nave.atualizar()
 
+        # especiais carregam com o tempo (1 frame por frame jogado)
+        for especial in self.especiais:
+            if especial["carga"] < especial["total"]:
+                especial["carga"] += 1
+
         # tiro do jogador (segurar ESPAÇO atira repetidamente)
         if teclas[pygame.K_SPACE]:
             novos = self.nave.atirar()
@@ -250,14 +322,17 @@ class Jogo:
                 self.tiros_nave.extend(novos)
                 self.tocar("tiro")
 
-        # inimigos: movem e talvez atirem
+        # inimigos: movem e talvez atirem (o chefe atira uma rajada)
         for inimigo in self.inimigos:
             if not inimigo.vivo:
                 continue
             inimigo.atualizar()
             tiro = inimigo.tentar_atirar(self.nave.rect)
             if tiro is not None:
-                self.tiros_inimigos.append(tiro)
+                if isinstance(tiro, list):
+                    self.tiros_inimigos.extend(tiro)
+                else:
+                    self.tiros_inimigos.append(tiro)
                 self.tocar("tiro_inimigo")
 
         # move os tiros e descarta os que saíram da tela
@@ -292,7 +367,7 @@ class Jogo:
                 if inimigo.vivo and tiro.rect.colliderect(inimigo.rect):
                     self.tiros_nave.remove(tiro)
                     morreu = inimigo.receber_dano()
-                    self.pontos += cfg.PONTOS_ACERTO
+                    self.pontos += inimigo.pontos_acerto
                     if morreu:
                         self.destruir_inimigo(inimigo, solta_poder=True)
                     else:
@@ -319,16 +394,22 @@ class Jogo:
                 self.pegar_poder(poder.tipo)
 
     def destruir_inimigo(self, inimigo, solta_poder):
-        """Explosão, pontos e (talvez) um poder caindo do lugar do inimigo."""
-        self.pontos += cfg.PONTOS_DESTRUIR
-        self.explosoes.append(Explosao(inimigo.rect.centerx, inimigo.rect.centery, inimigo.cor, 40))
+        """Explosão, pontos e (talvez) os poderes do nível caindo do lugar dele."""
+        self.pontos += inimigo.pontos_morte
+        tamanho = 90 if inimigo.chefe else 40
+        self.explosoes.append(Explosao(inimigo.rect.centerx, inimigo.rect.centery, inimigo.cor, tamanho))
         self.tocar("explosao")
-        print(f"[jogo] {inimigo.nome} destruído! +{cfg.PONTOS_DESTRUIR} pontos")
-        # o primeiro inimigo do nível sempre solta o poder; os outros têm uma chance
-        if solta_poder and (self.primeira_morte or random.random() < cfg.PODER_CHANCE):
+        print(f"[jogo] {inimigo.nome} destruído! +{inimigo.pontos_morte} pontos")
+        # o primeiro inimigo do nível (e o chefe) sempre solta; os outros têm uma chance
+        if solta_poder and (self.primeira_morte or inimigo.chefe or random.random() < cfg.PODER_CHANCE):
             self.primeira_morte = False
-            self.poderes.append(Poder(inimigo.rect.centerx, inimigo.rect.centery, self.poder_nivel))
-            print(f"[jogo] caiu um poder: {PODERES[self.poder_nivel]['nome']}")
+            # um item para cada poder do nível, lado a lado
+            n = len(self.poderes_nivel)
+            for i, tipo in enumerate(self.poderes_nivel):
+                x = inimigo.rect.centerx + (i - (n - 1) / 2) * 34
+                x = max(Poder.RAIO, min(cfg.LARGURA - Poder.RAIO, x))
+                self.poderes.append(Poder(x, inimigo.rect.centery, tipo))
+            print("[jogo] caiu: " + " + ".join(PODERES[t]["nome"] for t in self.poderes_nivel))
 
     def nave_atingida(self, causa):
         resultado = self.nave.receber_dano()
@@ -344,19 +425,57 @@ class Jogo:
     def pegar_poder(self, tipo):
         """Aplica o poder pego. Os que mexem nos inimigos são tratados aqui."""
         self.tocar("poder")
-        print(f"[poder] {PODERES[tipo]['nome']} ativado")
         if tipo == "explosao":
-            vivos = [ini for ini in self.inimigos if ini.vivo]
-            alvos = random.sample(vivos, min(cfg.EXPLOSAO_ALVOS, len(vivos)))
-            for inimigo in alvos:
-                inimigo.vida = 0
-                self.destruir_inimigo(inimigo, solta_poder=False)
+            self.explodir_inimigos()
         elif tipo == "congelar":
             for inimigo in self.inimigos:
                 if inimigo.vivo:
                     inimigo.congelado = cfg.CONGELAR_DURACAO
         else:
-            self.nave.aplicar_poder(tipo)
+            if not self.nave.aplicar_poder(tipo, self.teto_vidas):
+                print(f"[poder] {PODERES[tipo]['nome']}: vidas já no teto ({self.teto_vidas})")
+                return
+        print(f"[poder] {PODERES[tipo]['nome']} ativado")
+
+    def explodir_inimigos(self):
+        """Destrói até EXPLOSAO_ALVOS inimigos comuns; o chefe é imune."""
+        vivos = [ini for ini in self.inimigos if ini.vivo and not ini.chefe]
+        alvos = random.sample(vivos, min(cfg.EXPLOSAO_ALVOS, len(vivos)))
+        for inimigo in alvos:
+            inimigo.vida = 0
+            self.destruir_inimigo(inimigo, solta_poder=False)
+        if not alvos:
+            print("[jogo] explosão sem alvos (o chefe é imune)")
+
+    def usar_especial(self, indice):
+        """Tecla 1/2/3: usa o especial se a carga estiver completa."""
+        if indice >= len(self.especiais):
+            return
+        especial = self.especiais[indice]
+        if especial["carga"] < especial["total"]:
+            print(f"[especial] {especial['nome']} ainda carregando "
+                  f"({(especial['total'] - especial['carga']) // cfg.FPS + 1}s)")
+            return
+        tipo = especial["tipo"]
+        if tipo == "vida":
+            if not self.nave.aplicar_poder("vida", self.teto_vidas):
+                print(f"[especial] Vida extra: vidas já no teto ({self.teto_vidas}) - carga mantida")
+                return
+        elif tipo == "explosao":
+            self.explodir_inimigos()
+        elif tipo == "tempestade":
+            # 1 de dano em TODOS os inimigos vivos, chefe incluso
+            for inimigo in self.inimigos:
+                if inimigo.vivo:
+                    self.pontos += inimigo.pontos_acerto
+                    if inimigo.receber_dano():
+                        self.destruir_inimigo(inimigo, solta_poder=True)
+                    else:
+                        self.explosoes.append(Explosao(inimigo.rect.centerx, inimigo.rect.centery, cfg.AMARELO, 10))
+            self.tocar("acerto")
+        especial["carga"] = 0
+        self.tocar("poder")
+        print(f"[especial] {especial['nome']} usado! recarregando...")
 
     def terminar(self):
         self.estado = FIM
@@ -380,7 +499,7 @@ class Jogo:
                 estrela.atualizar()
             estrela.desenhar(self.tela)
 
-    def desenhar_partida(self):
+    def desenhar_partida(self, piscar):
         for inimigo in self.inimigos:
             if inimigo.vivo:
                 inimigo.desenhar(self.tela)
@@ -393,7 +512,8 @@ class Jogo:
         for explosao in self.explosoes:
             explosao.desenhar(self.tela)
         ui.desenhar_hud(self.tela, self.fontes, self.nave, self.inimigos, self.pontos,
-                        self.som_ligado, self.nivel, self.poder_nivel)
+                        self.som_ligado, self.nivel, self.poderes_nivel, self.especiais,
+                        self.teto_vidas, piscar)
 
     def desenhar(self):
         self.desenhar_cenario()
@@ -402,15 +522,16 @@ class Jogo:
         if self.estado == MENU:
             ui.desenhar_menu_inicial(self.tela, self.fontes, piscar)
         elif self.estado == NIVEL:
-            self.desenhar_partida()
-            ui.desenhar_nivel(self.tela, self.fontes, self.nivel, len(self.inimigos), self.poder_nivel)
+            self.desenhar_partida(piscar)
+            ui.desenhar_nivel(self.tela, self.fontes, self.nivel, len(self.inimigos),
+                              self.poderes_nivel, self.tem_chefe, self.teto_vidas)
         elif self.estado == JOGANDO:
-            self.desenhar_partida()
+            self.desenhar_partida(piscar)
         elif self.estado == PAUSA:
-            self.desenhar_partida()
+            self.desenhar_partida(piscar)
             ui.desenhar_pausa(self.tela, self.fontes, self.opcao_pausa, self.som_ligado)
         elif self.estado == FIM:
-            self.desenhar_partida()
+            self.desenhar_partida(piscar)
             ui.desenhar_fim(self.tela, self.fontes, self.nivel, self.pontos, self.recorde, piscar)
 
         pygame.display.flip()
@@ -424,10 +545,6 @@ class Jogo:
             self.processar_eventos()
             if self.estado == JOGANDO:
                 self.atualizar_jogo()
-            elif self.estado == NIVEL:
-                self.timer_nivel -= 1
-                if self.timer_nivel <= 0:
-                    self.estado = JOGANDO
             elif self.estado == FIM:
                 # deixa as explosões terminarem de animar na tela de fim
                 for explosao in self.explosoes:
@@ -447,9 +564,12 @@ def imprimir_controles():
     print("Controles:")
     for tecla, funcao in ui.CONTROLES:
         print(f"  {tecla:<18} {funcao}")
-    print("Poderes:")
+    print("Poderes (caem dos inimigos):")
     for info in PODERES.values():
         print(f"  {info['nome']:<18} {info['desc']}")
+    print("Especiais (carregam com o tempo):")
+    for i, (_, nome, seg) in enumerate(cfg.ESPECIAIS):
+        print(f"  [{i + 1}] {nome:<14} a cada {seg}s")
     print("=" * 46)
 
 

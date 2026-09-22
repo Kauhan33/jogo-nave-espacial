@@ -43,29 +43,57 @@ polígonos do pygame e os efeitos sonoros/música são sintetizados na hora
 
 - O **nível 1 tem 2 inimigos** e **cada nível novo adiciona mais um**
   (nível N = N + 1 inimigos), um pouco mais rápidos e atirando mais.
-- Ao destruir todos os inimigos aparece a tela "NÍVEL N" e as **3 vidas
-  são restauradas**.
-- O jogo só termina quando as 3 vidas acabam — o objetivo é chegar o mais
-  longe possível.
+- Ao destruir todos os inimigos aparece a tela "NÍVEL N" (a fase só começa
+  quando você aperta uma tecla). As vidas voltam para **pelo menos 3**;
+  vidas extras acumuladas são mantidas.
+- **Teto de vidas** = 5 ou metade dos inimigos da fase, o que for maior
+  (12 inimigos → 6 vidas, 14 → 7...).
+- O jogo só termina quando as vidas acabam — o objetivo é chegar o mais
+  longe possível. O recorde da sessão aparece na tela de fim.
+
+### Chefe (a cada 5 níveis)
+
+Nos níveis 5, 10, 15... aparece um **chefe** no centro, com metade dos
+inimigos normais como escolta. A cada chefe ele fica mais forte: mais vida
+(15, 25, 35...), mais rápido, atira mais vezes e com **mais tiros por rajada
+em leque** (3, 5, 7, até 9). Tem uma barra de vida grande no topo da tela,
+vale 200 pontos por acerto e 5000 × número do chefe ao ser destruído.
+**O chefe é imune à explosão** (tanto o poder quanto o especial).
 
 ### Poderes
 
-Quando um inimigo é destruído pode cair um poder (o primeiro do nível
-sempre cai; os demais têm 40% de chance). Pegue encostando a nave nele.
+Quando um inimigo é destruído pode cair um poder (o primeiro do nível e o
+chefe sempre soltam; os demais têm 40% de chance). Pegue encostando a nave.
+**Os poderes valem só na fase em que foram pegos** — exceto a vida extra,
+que acumula.
 
-| Poder        | Efeito                                              |
-|--------------|-----------------------------------------------------|
-| Tiro duplo   | Atira dois tiros de uma vez por 12 s                |
-| Explosão     | Destrói até 3 inimigos aleatórios na hora           |
-| Escudo       | Absorve o próximo tiro inimigo (círculo na nave)    |
-| Vida extra   | +1 vida (máximo 5)                                  |
-| Congelar     | Inimigos param de se mover e atirar por 5 s         |
-| Tiro rápido  | Intervalo entre tiros cai pela metade por 12 s      |
+| Poder        | Efeito                                                     |
+|--------------|------------------------------------------------------------|
+| Tiro duplo   | Atira dois tiros de uma vez por 12 s                       |
+| Explosão     | Destrói até 3 inimigos aleatórios na hora (não o chefe)    |
+| Escudo       | Absorve o próximo tiro inimigo (círculo na nave)           |
+| Vida extra   | +1 vida (até o teto da fase)                               |
+| Congelar     | Inimigos param de se mover e atirar por 5 s                |
+| Tiro rápido  | Intervalo entre tiros cai pela metade por 12 s             |
 
-Cada nível tem **um** poder, mostrado na tela "NÍVEL N" e no rodapé do HUD.
-Do nível 1 ao 4 os poderes **não se repetem** (ordem sorteada a cada
-partida); a partir do nível 5 qualquer um pode ser sorteado de novo.
-Os poderes ativos e o tempo restante aparecem no canto inferior esquerdo.
+- **Níveis 1 a 4:** um poder por nível, sem repetir (ordem sorteada).
+- **Nível 5 em diante:** caem **duplas** de poderes, sorteadas sem repetir
+  a mesma dupla. Quando todas as 15 duplas saem, passam a cair **trios**,
+  depois quartetos, quintetos e os 6 juntos. Depois disso, qualquer
+  combinação pode ser sorteada.
+- A tela "NÍVEL N" e o rodapé do HUD mostram os poderes da fase; os poderes
+  ativos e o tempo restante aparecem no canto inferior esquerdo.
+
+### Especiais (carregam com o tempo)
+
+Ficam no canto inferior direito com uma barra de carga. Quando a barra
+enche, aperte a tecla para usar; depois ela recarrega do zero.
+
+| Tecla | Especial   | Carga | Efeito                                              |
+|-------|------------|-------|-----------------------------------------------------|
+| 1     | Vida extra | 30 s  | +1 vida (respeita o teto; se estiver no teto, mantém a carga) |
+| 2     | Explosão   | 60 s  | Destrói até 3 inimigos aleatórios (não afeta o chefe) |
+| 3     | Tempestade | 90 s  | 1 de dano em **todos** os inimigos, chefe incluso   |
 
 ## Controles
 
@@ -73,6 +101,7 @@ Os poderes ativos e o tempo restante aparecem no canto inferior esquerdo.
 |--------------------|---------------------------------|
 | Setas / W A S D    | Mover a nave                    |
 | Espaço             | Atirar (pode segurar)           |
+| 1 / 2 / 3          | Usar especial (quando carregado) |
 | ESC                | Pausar / abrir o menu de pausa  |
 | Enter              | Confirmar / começar             |
 | Setas Cima/Baixo   | Navegar no menu de pausa        |
@@ -87,8 +116,8 @@ pausa, e é impressa no terminal quando o jogo abre.
 
 | Arquivo                        | O que faz                                                          |
 |--------------------------------|--------------------------------------------------------------------|
-| [main.py](main.py)             | Laço principal (`while`), máquina de estados MENU/NIVEL/JOGANDO/PAUSA/FIM, níveis, poderes, colisões |
-| [entidades.py](entidades.py)   | Classes `Nave`, `Inimigo` (com barra de vida), `Tiro`, `Poder` (catálogo `PODERES`), `Explosao`, `Estrela` |
+| [main.py](main.py)             | Laço principal (`while`), máquina de estados MENU/NIVEL/JOGANDO/PAUSA/FIM, níveis, chefe, poderes, especiais, colisões |
+| [entidades.py](entidades.py)   | Classes `Nave`, `Inimigo` (com barra de vida), `Chefe`, `Tiro`, `Poder` (catálogo `PODERES`), `Explosao`, `Estrela` |
 | [interface.py](interface.py)   | HUD, tela inicial, tela de nível, menu de pausa, tela de fim e a lista de controles |
 | [sons.py](sons.py)             | Síntese dos efeitos sonoros e da música de fundo                   |
 | [config.py](config.py)         | Constantes: tamanho da tela, cores, velocidades, vidas, pontos     |

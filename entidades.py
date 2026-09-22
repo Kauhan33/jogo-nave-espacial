@@ -19,7 +19,7 @@ import config as cfg
 class Tiro:
     """Um projétil. `dono` é "nave" (sobe) ou "inimigo" (desce)."""
 
-    def __init__(self, x, y, dono, vel_x=0.0):
+    def __init__(self, x, y, dono, vel_x=0.0, vel_y=None, cor=None):
         self.dono = dono
         self.x = float(x)
         self.y = float(y)
@@ -30,6 +30,10 @@ class Tiro:
         else:
             self.vel_y = cfg.TIRO_VEL_INIMIGO
             self.cor = cfg.LARANJA
+        if vel_y is not None:
+            self.vel_y = vel_y
+        if cor is not None:
+            self.cor = cor
         self.rect = pygame.Rect(0, 0, cfg.TIRO_LARGURA, cfg.TIRO_ALTURA)
         self.rect.center = (int(self.x), int(self.y))
 
@@ -123,8 +127,12 @@ class Nave:
         self.vidas -= 1
         return "vida"
 
-    def aplicar_poder(self, tipo):
-        """Ativa um poder na nave (os que afetam só a nave)."""
+    def aplicar_poder(self, tipo, teto_vidas=cfg.VIDAS_TETO_MIN):
+        """Ativa um poder na nave (os que afetam só a nave).
+
+        `teto_vidas` é o máximo de vidas permitido no nível atual.
+        Devolve False se o poder não teve efeito (ex.: vidas já no teto).
+        """
         if tipo == "tiro_duplo":
             self.tiro_duplo = cfg.PODER_DURACAO
         elif tipo == "tiro_rapido":
@@ -132,7 +140,16 @@ class Nave:
         elif tipo == "escudo":
             self.escudo = True
         elif tipo == "vida":
-            self.vidas = min(cfg.NAVE_VIDAS_MAX, self.vidas + 1)
+            if self.vidas >= teto_vidas:
+                return False
+            self.vidas += 1
+        return True
+
+    def limpar_poderes(self):
+        """Fim de nível: os poderes coletados valem só na fase em que caíram."""
+        self.tiro_duplo = 0
+        self.tiro_rapido = 0
+        self.escudo = False
 
     def desenhar(self, tela):
         # pisca enquanto está invencível
@@ -189,6 +206,9 @@ class Inimigo:
         self.recarga = cfg.INIMIGO_INTERVALO_MIN
         self.piscar = 0                                 # frames de "flash" ao ser atingido
         self.congelado = 0                              # frames parado (poder "congelar")
+        self.chefe = False
+        self.pontos_acerto = cfg.PONTOS_ACERTO
+        self.pontos_morte = cfg.PONTOS_DESTRUIR
 
     @property
     def vivo(self):
@@ -275,16 +295,82 @@ class Inimigo:
             pygame.draw.line(tela, cfg.PRETO, (mx, y), (mx, y + altura))
 
 
+class Chefe(Inimigo):
+    """Inimigo grande que aparece a cada CHEFE_A_CADA níveis.
+
+    `tier` é o número do chefe (1 no nível 5, 2 no nível 10...): cada chefe
+    tem mais vida, é mais rápido, atira mais vezes e com mais tiros por
+    rajada (em leque). É imune à explosão.
+    """
+
+    def __init__(self, x, y, tier, nivel):
+        super().__init__(x, y, padrao="vaivem", cor=(200, 40, 70), nome=f"CHEFE {tier}", nivel=nivel)
+        self.chefe = True
+        self.tier = tier
+        self.rect = pygame.Rect(0, 0, cfg.CHEFE_LARGURA, cfg.CHEFE_ALTURA)
+        self.rect.center = (x, y)
+        self.vida_max = cfg.CHEFE_VIDA_BASE + cfg.CHEFE_VIDA_EXTRA * (tier - 1)
+        self.vida = self.vida_max
+        self.velocidade = cfg.CHEFE_VELOCIDADE + cfg.CHEFE_VEL_EXTRA * (tier - 1)
+        self.chance_tiro = cfg.CHEFE_CHANCE_TIRO + cfg.CHEFE_CHANCE_EXTRA * (tier - 1)
+        self.tiros_por_rajada = min(cfg.CHEFE_TIROS_MAX, cfg.CHEFE_TIROS_BASE + cfg.CHEFE_TIROS_EXTRA * (tier - 1))
+        self.vel_tiro = cfg.TIRO_VEL_INIMIGO + 0.5 * (tier - 1)
+        self.pontos_acerto = cfg.PONTOS_CHEFE_ACERTO
+        self.pontos_morte = cfg.PONTOS_CHEFE * tier
+
+    def tentar_atirar(self, alvo_rect):
+        """Rajada em leque: vários tiros abrindo a partir do centro do chefe."""
+        if self.congelado > 0 or self.recarga > 0 or random.random() > self.chance_tiro:
+            return None
+        self.recarga = cfg.INIMIGO_INTERVALO_MIN
+        tiros = []
+        n = self.tiros_por_rajada
+        for i in range(n):
+            # espalha de -2.5 a +2.5 no eixo X (mais tiros = leque mais fechado)
+            vel_x = -2.5 + 5.0 * i / max(1, n - 1)
+            tiros.append(Tiro(self.rect.centerx, self.rect.bottom, "inimigo",
+                              vel_x, self.vel_tiro, cfg.ROSA))
+        return tiros
+
+    def receber_dano(self):
+        """O chefe não acelera a cada acerto como os inimigos comuns."""
+        self.vida -= 1
+        self.piscar = 6
+        return self.vida <= 0
+
+    def desenhar(self, tela):
+        r = self.rect
+        if self.piscar > 0:
+            cor = cfg.BRANCO
+        elif self.congelado > 0:
+            cor = cfg.GELO
+        else:
+            cor = self.cor
+        corpo = [(r.left, r.top + 20), (r.left + 30, r.top), (r.right - 30, r.top),
+                 (r.right, r.top + 20), (r.right - 20, r.bottom - 10), (r.centerx, r.bottom),
+                 (r.left + 20, r.bottom - 10)]
+        pygame.draw.polygon(tela, cor, corpo)
+        pygame.draw.polygon(tela, cfg.BRANCO, corpo, 3)
+        # "olhos" e canhão central
+        for dx in (-28, 28):
+            pygame.draw.circle(tela, cfg.AMARELO, (r.centerx + dx, r.centery - 6), 8)
+            pygame.draw.circle(tela, cfg.PRETO, (r.centerx + dx, r.centery - 6), 3)
+        pygame.draw.rect(tela, cfg.CINZA, (r.centerx - 8, r.bottom - 22, 16, 22), border_radius=3)
+        if self.congelado > 0:
+            pygame.draw.ellipse(tela, cfg.CIANO, r.inflate(16, 16), 2)
+        # a barra de vida do chefe é desenhada pelo HUD (grande, no topo)
+
+
 # Catálogo de poderes: tipo -> nome, cor, letra do ícone e descrição
 PODERES = {
     "tiro_duplo":  {"nome": "Tiro duplo",  "cor": cfg.CIANO,   "letra": "D",
                     "desc": "Atira dois tiros de uma vez por 12 s"},
     "explosao":    {"nome": "Explosão",    "cor": cfg.LARANJA, "letra": "X",
-                    "desc": f"Destrói até {cfg.EXPLOSAO_ALVOS} inimigos aleatórios"},
+                    "desc": f"Destrói até {cfg.EXPLOSAO_ALVOS} inimigos aleatórios (não afeta o chefe)"},
     "escudo":      {"nome": "Escudo",      "cor": cfg.AZUL,    "letra": "E",
                     "desc": "Absorve o próximo tiro inimigo"},
     "vida":        {"nome": "Vida extra",  "cor": cfg.VERDE,   "letra": "+",
-                    "desc": f"Ganha 1 vida (máximo {cfg.NAVE_VIDAS_MAX})"},
+                    "desc": "Ganha 1 vida (acumula entre os níveis)"},
     "congelar":    {"nome": "Congelar",    "cor": cfg.GELO,    "letra": "C",
                     "desc": "Inimigos param de se mover e atirar por 5 s"},
     "tiro_rapido": {"nome": "Tiro rápido", "cor": cfg.AMARELO, "letra": "R",
