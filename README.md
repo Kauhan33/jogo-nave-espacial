@@ -1,5 +1,7 @@
 # Nave Espacial — Space Shooter em Python
 
+**Repositório:** https://github.com/Kauhan33/jogo-nave-espacial
+
 Jogo estilo *space shooter* feito em Python com **pygame**. Você controla uma
 nave e precisa destruir duas naves inimigas que se movem e atiram contra você.
 
