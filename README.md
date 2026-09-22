@@ -12,6 +12,16 @@ pip install -r requirements.txt
 python main.py
 ```
 
+### Executável (Windows)
+
+```bash
+pip install pyinstaller
+python build_exe.py
+```
+
+Gera `dist/NaveEspacial.exe`, um arquivo único que roda sem Python instalado
+(ver [build_exe.py](build_exe.py)).
+
 Não precisa de nenhum arquivo de imagem ou som: os gráficos são desenhados com
 polígonos do pygame e os efeitos sonoros/música são sintetizados na hora
 (ver [sons.py](sons.py)).
